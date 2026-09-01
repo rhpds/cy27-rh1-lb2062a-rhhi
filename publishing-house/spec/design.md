@@ -70,13 +70,13 @@ Automation must provision per-student RHEL VMs with the following pre-staged res
 
 ## Infrastructure Requirements
 
-- **Cloud provider:** TBD — confirmed in infrastructure phase
-- **Cluster type:** TBD — confirmed in infrastructure phase
-- **OCP version:** TBD — confirmed in infrastructure phase
-- **Topology:** TBD — confirmed in infrastructure phase
-- **Sizing:** TBD — confirmed in infrastructure phase
-- **Automation approach:** TBD — confirmed in infrastructure phase
-- **AI/MaaS:** TBD — confirmed in infrastructure phase
-- **External services:** TBD — confirmed in infrastructure phase
-- **AAP version:** TBD — confirmed in infrastructure phase
-- **Non-GA products:** TBD — confirmed in infrastructure phase
+- **Cloud provider:** CNV (default — single RHEL VM per student, no bare-metal or nested-virt requirement)
+- **Cluster type:** N/A — RHEL VM lab, no OCP cluster
+- **OCP version:** N/A
+- **Topology:** Per-student — 1 RHEL VM per student
+- **Sizing:** 1 RHEL 10 VM per student: 1 vCPU, 4 GB RAM, 40 GB disk (`rhel-10-0-07-09-25-3` image)
+- **Automation approach:** Ansible — `setup-automation/` provisions the VM; `runtime-automation/` provides per-module setup/solve/validate scripts
+- **AI/MaaS:** None
+- **External services:** `registry.access.redhat.com` (TCP 443 — RHHI and UBI image pulls at setup time and during the lab); lab Git repository (TCP 443 — sparse-cloned at provision time to stage `~/flask/` Containerfiles)
+- **AAP version:** N/A — not in products
+- **Non-GA products:** None — all RHHI images (`hi/python:3.14`, `hi/core-runtime:latest-builder`, `hi/caddy:latest`, `hi/curl:latest` and their variants) are publicly available on `registry.access.redhat.com`
