@@ -1,0 +1,30 @@
+= Building Applications with Red Hat Hardened Images
+
+This lab introduces Red Hat Hardened Images through a hands-on Flask application that runs
+on four different base image variants to illustrate distroless design, multi-stage builds,
+FIPS enforcement, and custom CA certificate embedding.
+
+== Lab Overview
+
+Participants build and run a Python Flask application on UBI, hardened, FIPS, and a TLS
+reverse proxy configuration. Each module adds a new dimension: package surface comparison,
+distroless constraints with multi-stage workarounds, FIPS-level crypto enforcement, and
+embedding an internal CA into a custom tool image.
+
+== Modules
+
+* Module 01: UBI Baseline -- run the demo app on UBI, explore the package footprint
+* Module 02: Distroless & Variants -- distroless default vs builder variants and why the shell-form build fails
+* Module 03: Multi-Stage & Operating -- multi-stage builds for a minimal runtime, and inspecting a distroless container with a debug sidecar
+* Module 04: FIPS Compliance -- FIPS variant enforcement and algorithm-level policy differences
+* Module 05: TLS Reverse Proxy -- Caddy pod, custom CA extraction, and embedding CA trust in a curl image
+
+== Infrastructure
+
+Single RHEL VM (4 GB RAM, 1 core) with podman, git, jq, nano, and emacs-nw pre-installed.
+Two exposed routes: Flask on HTTP port 8080 and Caddy on HTTPS port 8443 (TLS passthrough).
+Egress on TCP 443 required to pull images from `registry.access.redhat.com`.
+
+== Duration
+
+20-25 minutes

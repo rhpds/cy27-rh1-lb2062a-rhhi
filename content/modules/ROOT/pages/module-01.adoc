@@ -18,11 +18,11 @@ In this lab, you'll get hands-on with Red Hat Hardened Images. You'll explore th
 = UBI Baseline
 
 Red Hat Hardened Images (RHHI) are a catalog of distroless images designed for secure use: smaller attack surface, non-root by default, rebuilt rapidly when CVEs are patched. These images closely track upstream projects to deliver fixes and features faster.
-If this is the first time you've head any of these terms, not to worry, we'll talk more about them in a bit.
+If this is the first time you've heard any of these terms, not to worry, we'll talk more about them in a bit.
 
 Red Hat Universal Base Images (UBI) are distribution based images designed for ease of use: easy extendability, broader tool support, backporting for API preservation. These images closely track RHEL to deliver the same packages and lifecycles.
 
-This lab runs the same Flask application on a UBI base, a hardened base, a FIPS-enforcing base, and behind a TLS reverse proxy.  First, lets examine the UBI starting point that many of us work with today.
+This lab runs the same Flask application on a UBI base, a hardened base, a FIPS-enforcing base, and behind a TLS reverse proxy.  First, let's examine the UBI starting point that many of us work with today.
 
 == The Application
 
@@ -89,7 +89,7 @@ podman exec -it rhhi-ubi rpm -qa | wc -l
 ----
 
 UBI includes packages that cover a broad range of use cases: development of new applications, network services, system init services. 
-That breadth is convenient for development but is surface area a production runtime does not need.
+That breadth is convenient for development but adds surface area a production runtime does not need.
 
 == Stop the Container
 

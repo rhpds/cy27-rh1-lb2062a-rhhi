@@ -1,0 +1,215 @@
+= TLS Reverse Proxy
+
+Applications in production typically sit behind a reverse proxy that handles TLS.
+Organizations will often have internal certificates or authorities (CAs) that need to be used to provide appropriate chains of trust for signing.
+This module runs Flask and Caddy in a pod, and relies on Caddy’s built in TLS support to simulate a CA.
+
+== Create a Pod
+
+Pods in Podman share a network namespace, which makes them a useful tool for running multiple independent containers as a single application.
+This operates the same way as the debug sidecar did when executing `curl localhost` in the previous example.
+Caddy can reach Flask on `localhost:8080` without any explicit container-to-container networking.
+We won't be exposing that port outside the pod, just the TLS port Caddy will use.
+
+[source,bash,role=execute]
+----
+podman pod create --name rhhi-pod -p 8443:8443
+----
+
+== Start the application in the Pod
+
+We'll start the demo application in the pod first.
+[source,bash,role=execute]
+----
+podman run -d --pod rhhi-pod --name rhhi-flask rhhi-demo:hardened
+----
+
+== Start Caddy in the Pod
+
+The Caddyfile is pre-staged at `~/webserver/Caddyfile`:
+
+[source,bash,role=execute]
+----
+cat ~/webserver/Caddyfile
+----
+[source,json]
+----
+include::example$flask/Caddyfile[]
+----
+NOTE: In your lab, the actual file will have the correct URL instead of the `<guid>-<domain>` placeholder in the above sample.
+
+This configures Caddy to listen on the lab's external hostname with `tls internal` and reverse proxy to `localhost:8080`.
+Caddy will generate a certificate from its internal CA for that hostname.
+We can just pass our custom Caddyfile as a volume to the image, but for a more robust production use case, it may be better to create a fully custom image.
+
+[source,bash,role=execute,subs=attributes+]
+----
+podman run -d --pod rhhi-pod --name rhhi-caddy \
+  -v ~/webserver/Caddyfile:/etc/caddy/Caddyfile:Z \
+  {rhhi-registry}/caddy:latest
+----
+
+== Observe the Certificate Problem
+
+Navigate to https://caddy-{guid}.{domain}/[*the Caddy proxy*^] in your browser.
+
+You'll see a certificate warning, your browser doesn't trust that CA. You could examine and proceed, but during pipeline testing that may not be possible.
+
+image::self-signed.png[]
+
+TIP: This screenshot was taken of Firefox, your specific browser may look different.
+
+`curl` from the terminal fails the same way:
+
+[source,bash,subs=attributes+,role=execute]
+----
+curl https://caddy-{guid}.{domain}/
+----
+....
+curl: (60) SSL certificate problem: unable to get local issuer certificate
+More details here: https://curl.se/docs/sslcerts.HTML
+
+curl failed to verify the legitimacy of the server and therefore could not
+establish a secure connection to it. To learn more about this situation and
+how to fix it, please visit the webpage mentioned above.
+....
+
+Using `-k` bypasses verification — but that defeats TLS entirely.
+The right fix is to trust the CA in the pipeline, not skip verification.
+
+== Extract the CA Certificate
+
+Caddy writes its internal CA key and certificate to `/data/caddy/pki/authorities/local/` inside the running container.
+Extract the root certificate; we'll use this with the `trust` tool later.
+////
+[source,bash,role=execute]
+----
+podman cp rhhi-caddy:/data/caddy/pki/authorities/local/root.key .
+podman cp rhhi-caddy:/data/caddy/pki/authorities/local/root.crt .
+cat root.key root.crt > ca.pem
+----
+This is similar to what you'd need from your internal CA.
+////
+
+[source,bash,role=execute]
+----
+podman cp rhhi-caddy:/data/caddy/pki/authorities/local/root.crt ~/webserver
+----
+
+You can check the details of the certificate like any other SSL certificate with `openssl` on the command line.
+[source,bash,role=execute]
+----
+openssl x509 -in ~/webserver/root.crt -noout -subject -issuer -purpose -dates
+----
+....
+subject=CN=Caddy Local Authority - 2026 ECC Root
+issuer=CN=Caddy Local Authority - 2026 ECC Root
+Certificate purposes:
+SSL client : No
+SSL client CA : Yes
+SSL server : No
+SSL server CA : Yes
+Netscape SSL server : No
+Netscape SSL server CA : Yes
+S/MIME signing : No
+S/MIME signing CA : Yes
+S/MIME encryption : No
+S/MIME encryption CA : Yes
+CRL signing : Yes
+CRL signing CA : Yes
+Any Purpose : Yes
+Any Purpose CA : Yes
+OCSP helper : Yes
+OCSP helper CA : Yes
+Time Stamp signing : No
+Time Stamp signing CA : Yes
+Code signing : No
+Code signing CA : Yes
+notBefore=Jun  4 19:48:30 2026 GMT
+notAfter=Apr 12 19:48:30 2036 GMT
+....
+
+Notice the subject and issuer are "Caddy Local Authority" and the purposes are all CA related.
+
+===  Build custom curl with CA bundle
+
+Using our internal CA as part of the trusted chain, we'd need to embed it in the image for our applications or tools. We'll use the `builder` variant of the `curl` image to create a custom internal `curl` we could use to validate custom certificates in a pipeline.
+
+This multi-stage pattern is the same we used before. This keeps all of the work of creating the new trust store in our builder and only adds the files we need to our final `curl` tool image.
+
+[source,bash,role=execute,subs=attributes+]
+----
+cat > ~/webserver/Containerfile.pem << 'EOF'
+FROM {rhhi-registry}/curl:latest-builder as builder
+
+# Copy the certificate to the image
+COPY root.crt /tmp/ # <.>
+
+# Temporarily switch to root to add the CA certificate to the trust store
+USER root
+RUN trust anchor /tmp/root.crt # <.>
+USER ${CONTAINER_DEFAULT_USER}
+
+
+# Runtime stage:
+# Copy the trust store from the builder image to the runtime image
+FROM {rhhi-registry}/curl:latest
+COPY --from=builder /etc/pki/ca-trust/extracted /etc/pki/ca-trust/extracted # <.>
+EOF
+----
+<.> Copy the custom CA certificate to the `build` stage
+<.> Include the custom CA in our trusted root
+<.> Only copy the PKI files into the final image
+
+Now build our new tool with the internal CA trusted.
+[source,bash,role=execute]
+----
+podman build -t rhhi-curl:local-ca -f ~/webserver/Containerfile.pem ~/webserver 
+----
+
+== Verify the chain with our new image
+
+The custom `curl` image will display the raw HTML of our application, with the table of the hashes somewhere near the bottom.
+
+[source,bash,subs=attributes+,role=execute]
+----
+podman run --rm rhhi-curl:local-ca -s https://caddy-{guid}.{domain}/crypto-demo
+----
+....
+ <table>
+    <tr><th>Algorithm</th><th>Result</th></tr>
+    
+    <tr>
+      <td>MD5</td>
+      <td >2f8500678a1419b0bbf17491c551e50f</td>
+    </tr>
+    
+    <tr>
+      <td>SHA256</td>
+      <td >418a35e6a4121cdeda57945b8b336aa44d483942d532647b26cc69d3d93ff90b</td>
+    </tr>
+    
+    <tr>
+      <td>SHA512</td>
+      <td >f3c7169fc5c397da4ba029b9c6714cbd954a14281ebb6f53c600d5f8928e8d1470524c2d283dc0b89d44a07472ea82c0b611ff4816cfe0ddab32705d96c185d8</td>
+    </tr>
+    
+  </table>
+....
+
+== Wrap Up
+
+Over these exercises, the same Flask application ran on four different bases:
+
+[options="header"]
+|===
+| Image | Base | Key Characteristic
+| `rhhi-demo:ubi`     | `ubi10/ubi`              | General-purpose, full package set
+| `rhhi-demo:builder` | `hi/python:3.14-builder` | Builder tools present — not for production
+| `rhhi-demo:hardened`      | `hi/python:3.14`         | Curated runtime, minimal CVE surface
+| `rhhi-demo:fips`    | `hi/python:3.14-fips`    | FIPS enforcement at the OpenSSL level
+|===
+
+Red Hat Hardened Images are production-focused variants with a consistent catalog, predictable rebuild cadence, and variant support (default, builder, fips) designed to match the full container lifecycle.
+Getting the most out of distroless minimal images may take a little adjustment, but are well worth it for the reduction in toil when securing your applications. 
+The impact of Red Hat Hardened Images on CVE scans, SBOMs, and supply chains can be explored in another lab, "Security operations with Red Hat Hardened Images"

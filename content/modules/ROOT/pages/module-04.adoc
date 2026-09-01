@@ -1,212 +1,139 @@
-= TLS Reverse Proxy
+= Customized security images
 
-Applications in production typically sit behind a reverse proxy that handles TLS.
-Organizations will often have internal certificates or authorities (CAs) that need to be used to provide appropriate chains of trust for signing.
-This module runs Flask and Caddy in a pod, and relies on Caddy’s built in TLS support to simulate a CA.
+[[introduction]]
+== Introduction
 
-== Create a Pod
+Beginning with a baseline that reduces the toil associated with identifying, researching, and, when possible, manually remediating CVEs while tracking exceptions is a good start to reducing friction on the path to production.
 
-Pods in Podman share a network namespace, which makes them a useful tool for running multiple independent containers as a single application.
-Caddy can reach Flask on `localhost:8080` without any explicit container-to-container networking.
-We won't be exposing that port outside the pod, just the TLS port Caddy will use.
+However this isn’t the only security concern common to containerized application delivery. Nor is it the only control available when using Hardened Images. In this module we’ll look at a few examples of how to customize hardened images for specific security requirements like custom certificates and regulatory compliance.
+
+[[fips]]
+== Baselines for special use cases
+
+In addition to the `default` and `builder` variants already discussed, we also have variants designed around specific security profiles. One example is the `fips` variant, aimed at satisfying the needs of a containerized application that must meet the Federal Information Processing Standards (FIPS) 140-3 standard for security and interoperability.
+
+While this particular regulatory requirement may not be universal, it serves as a useful example of how we are exploring additional compliance measures on top of the baseline images and how these variants combine. It also shows how you can separate container enforcement from host enforcement to provide a better overall application security posture.
+
+The `fips` variant changes the algorithms available in the container and also uses the validated FIPS provider delivered in RHEL.  Note that while the algorithms are always enforced, the underlying host or cluster must also be operating in a FIPS mode to ensure full compliance. Like the `default`, a `-builder` variant exists to support multi-stage and other build patterns.
+
+=== Check FIPS mode on host
+
+In this lab, the host and cluster are *not* in FIPS mode, however the container restrictions will be enforced regardless. A `0` in the `fips_enabled` parameter means the kernel boot parameter was not set.
+
+For **full FIPS 140-3 compliance** (required for FedRAMP, DoD, and other regulatory frameworks):
+
+* Container must use `-fips` variant (provides validated crypto modules)
+* Host/cluster must enable FIPS mode (kernel boot parameter `fips=1`)
+* Hardware may need FIPS-validated TPM (for some compliance levels)
+
+We can still demonstrate how the container restricts algorithms as the image enforcement operates separately. Production deployments requiring certification would need both container AND host in FIPS mode.
 
 [source,bash,role=execute]
 ----
-podman pod create --name rhhi-pod -p 8443:8443
+cat /proc/sys/crypto/fips_enabled
+----
+----
+0
 ----
 
-== Start the application in the Pod
+== Build the FIPS Image
 
-We'll start the demo application in the pod first.
-[source,bash,role=execute]
-----
-podman run -d --pod rhhi-pod --name rhhi-flask rhhi-demo:hardened
-----
-
-== Start Caddy in the Pod
-
-The Caddyfile is pre-staged at `~/webserver/Caddyfile`:
+`Containerfile.fips` follows the same multi-stage pattern as the hardened image, but uses `hi/python:3.14-fips` variants in the stages.
 
 [source,bash,role=execute]
 ----
-cat ~/webserver/Caddyfile
-----
-[source,json]
-----
-include::example$flask/Caddyfile[]
-----
-NOTE: In your lab, the actual file will have the correct URL instead of the `<guid>-<domain>` placeholder in the above sample.
-
-This configures Caddy to listen on the lab's external hostname with `tls internal` and reverse proxy to `localhost:8080`.
-Caddy will generate a certificate from its internal CA for that hostname.
-We can just pass our custom Caddyfile as a volume to the image, but for a more robust production use case, it may be better to create a fully custom image.
-
-[source,bash,role=execute,subs=attributes+]
-----
-podman run -d --pod rhhi-pod --name rhhi-caddy \
-  -v ~/webserver/Caddyfile:/etc/caddy/Caddyfile:Z \
-  {rhhi-registry}/caddy:latest
+diff ~/flask/Containerfile.fips ~/flask/Containerfile.hardened
 ----
 
-== Observe the Certificate Problem
-
-Navigate to https://caddy-{guid}.{domain}/[*the Caddy proxy*^] in your browser.
-
-You'll see a certificate warning, your browser doesn't trust that CA. You could examine and proceed, but during pipeline testing that may not be possible.
-
-image::self-signed.png[]
-
-TIP: This screenshot was taken of Firefox, your specfic browser may look different.
-
-`curl` from the terminal fails the same way:
-
-[source,bash,subs=attributes+,role=execute]
-----
-curl https://caddy-{guid}.{domain}/
-----
+[#image-change,diff]
 ....
-curl: (60) SSL certificate problem: unable to get local issuer certificate
-More details here: https://curl.se/docs/sslcerts.HTML
-
-curl failed to verify the legitimacy of the server and therefore could not
-establish a secure connection to it. To learn more about this situation and
-how to fix it, please visit the webpage mentioned above.
+2c2
+< FROM registry.access.redhat.com/hi/python:3.14-fips-builder AS deps
+---
+> FROM registry.access.redhat.com/hi/python:3.14-builder AS deps
+9c9
+< FROM registry.access.redhat.com/hi/python:3.14-fips
+---
+> FROM registry.access.redhat.com/hi/python:3.14
+26c26
+< ENV RHHI_VARIANT=fips
+---
+> ENV RHHI_VARIANT=hardened
 ....
 
-Using `-k` bypasses verification — but that defeats TLS entirely.
-The right fix is to trust the CA in the pipeline, not skip verification.
-
-== Extract the CA Certificate
-
-Caddy writes its internal CA key and certificate to `/data/caddy/pki/authorities/local/` inside the running container.
-Extract the root certificate; we'll use this with the `trust` tool later.
-////
-[source,bash,role=execute]
-----
-podman cp rhhi-caddy:/data/caddy/pki/authorities/local/root.key .
-podman cp rhhi-caddy:/data/caddy/pki/authorities/local/root.crt .
-cat root.key root.crt > ca.pem
-----
-This is similar to what you'd need from your internal CA.
-////
+We see the new variants in place and the updated environment variable passed to the application.
+Let's see the effect when we build.
 
 [source,bash,role=execute]
 ----
-podman cp rhhi-caddy:/data/caddy/pki/authorities/local/root.crt ~/webserver
+podman build -t rhhi-demo:fips -f ~/flask/Containerfile.fips ~/flask
 ----
+....
+[1/2] STEP 1/3: FROM registry.access.redhat.com/hi/python:3.14-fips-builder AS deps
+[1/2] STEP 2/3: USER root
+--> 1b2d35ea580a
+  ... 
+[2/2] STEP 1/9: FROM registry.access.redhat.com/hi/python:3.14-fips
+[2/2] STEP 2/9: COPY --from=deps /install /usr/local
+--> 18de559bf142
+....
 
-You can check the details of the certificate like any other SSL certificate with `openssl` on the command line.
+The builder stage uses `hi/python:3.14-fips-builder`, the FIPS-compliant build variant.
+FIPS policy is enforced throughout: both the pip installation step and the application runtime run in a FIPS-enforcing environment.
+
+== Run the FIPS Image
+
 [source,bash,role=execute]
 ----
-openssl x509 -in ~/webserver/root.crt -noout -subject -issuer -purpose -dates
+podman run -d --rm --name rhhi-fips -p 8080:8080 rhhi-demo:fips
 ----
-....
-subject=CN=Caddy Local Authority - 2026 ECC Root
-issuer=CN=Caddy Local Authority - 2026 ECC Root
-Certificate purposes:
-SSL client : No
-SSL client CA : Yes
-SSL server : No
-SSL server CA : Yes
-Netscape SSL server : No
-Netscape SSL server CA : Yes
-S/MIME signing : No
-S/MIME signing CA : Yes
-S/MIME encryption : No
-S/MIME encryption CA : Yes
-CRL signing : Yes
-CRL signing CA : Yes
-Any Purpose : Yes
-Any Purpose CA : Yes
-OCSP helper : Yes
-OCSP helper CA : Yes
-Time Stamp signing : No
-Time Stamp signing CA : Yes
-Code signing : No
-Code signing CA : Yes
-notBefore=Jun  4 19:48:30 2026 GMT
-notAfter=Apr 12 19:48:30 2036 GMT
-....
 
-Notice the subject and issuer are "Caddy Local Authority" and the purposes are all CA related.
+Open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
 
-===  Build custom curl with CA bundle
+You'll see something like:
 
-Using our internal CA as part of the trusted chain, we'd need to embed it in the image for our applications or tools. We'll use the `builder` variant of the `curl` image to create a custom internal `curl` we could use to validate custom certificates in a pipeline.
+image::fips-demo.png[]
 
-This multi-stage pattern is the same we used before. This keeps all of the work of creating the new trust store in our builder and only adds the files we need to our final `curl` tool image.
+The MD5 row now shows an error.
+SHA-256 and SHA-512 are FIPS-approved and return results normally.
+The FIPS policy is enforced by the container's OpenSSL, not by the application code.
+The application didn't change — the base image did.
 
-[source,bash,role=execute,subs=attributes+]
-----
-cat > ~/webserver/Containerfile.pem << 'EOF'
-FROM {rhhi-registry}/curl:latest-builder as builder
+The MD5 algorithm used in the application *isn't available at all*, meaning these sorts of errors show up during early development stages instead of in production.
+This container level enforcement can greatly reduce the potential for rework due to environmental constraints that can't be fully replicated in each environment.
 
-# Copy the certificate to the image
-COPY root.crt /tmp/ # <.>
+== Verify the Difference
 
-# Temporarily switch to root to add the CA certificate to the trust store
-USER root
-RUN trust anchor /tmp/root.crt # <.>
-USER ${CONTAINER_DEFAULT_USER}
+Stop the FIPS container and try the same request against the hardened non-FIPS image:
 
-
-# Runtime stage:
-# Copy the trust store from the builder image to the runtime image
-FROM {rhhi-registry}/curl:latest
-COPY --from=builder /etc/pki/ca-trust/extracted /etc/pki/ca-trust/extracted # <.>
-EOF
-----
-<.> Copy the custom CA certificate to the `build` stage
-<.> Include the custom CA in our trusted root
-<.> Only copy the PKI files into the final image
-
-Now build our new tool with the internal CA trusted.
 [source,bash,role=execute]
 ----
-podman build -t rhhi-curl:local-ca -f ~/webserver/Containerfile.pem ~/webserver 
+podman stop rhhi-fips
 ----
 
-== Verify the chain with our new image
-
-The custom `curl` image will display the raw HTML of our application, with the table of the hashes somewhere near the bottom.
-
-[source,bash,subs=attributes+,role=execute]
+[source,bash,role=execute]
 ----
-podman run --rm rhhi-curl:local-ca -s https://caddy-{guid}.{domain}/crypto-demo
+podman run -d --rm --name rhhi-hardened -p 8080:8080 rhhi-demo:hardened
 ----
-....
- <table>
-    <tr><th>Algorithm</th><th>Result</th></tr>
-    
-    <tr>
-      <td>MD5</td>
-      <td >2f8500678a1419b0bbf17491c551e50f</td>
-    </tr>
-    
-    <tr>
-      <td>SHA256</td>
-      <td >418a35e6a4121cdeda57945b8b336aa44d483942d532647b26cc69d3d93ff90b</td>
-    </tr>
-    
-    <tr>
-      <td>SHA512</td>
-      <td >f3c7169fc5c397da4ba029b9c6714cbd954a14281ebb6f53c600d5f8928e8d1470524c2d283dc0b89d44a07472ea82c0b611ff4816cfe0ddab32705d96c185d8</td>
-    </tr>
-    
-  </table>
-....
 
-== Wrap Up
+Open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
 
-Over these four modules, the same Flask application ran on four different bases:
+MD5 returns a hex digest as the algorithm is once again available to the application.
 
-[options="header"]
-|===
-| Image | Base | Key Characteristic
-| `rhhi-demo:ubi`     | `ubi10/ubi`              | General-purpose, full package set
-| `rhhi-demo:builder` | `hi/python:3.14-builder` | Builder tools present — not for production
-| `rhhi-demo:hardened`      | `hi/python:3.14`         | Curated runtime, minimal CVE surface
-| `rhhi-demo:fips`    | `hi/python:3.14-fips`    | FIPS enforcement at the OpenSSL level
-|===
+[source,bash,role=execute]
+----
+podman stop rhhi-hardened
+----
 
-Red Hat Hardened Images are production-focused variants with a consistent catalog, predictable rebuild cadence, and variant support (default, builder, fips) designed to match the full container lifecycle.
+== When Does This Matter?
+
+A FIPS-compliant base image enforces policy without requiring code changes.
+Applications that call non-approved algorithms fail at runtime, surfacing compliance gaps before deployment to regulated infrastructure.
+
+The same application, unmodified, runs on UBI, hardened, or FIPS — but its behavior differs because the runtime enforces different policy.
+This is the difference between hoping your application is compliant and verifying it is.
+
+While this example uses the FIPS specific image, this is also how we expect other new benchmark compliant images to behave in the future.
+We currently have plans for CIS and STIG images that can be used in the same way.
+
+Another common customization is additional SSL certificates. We'll explore how we can add things other than packages to images in the next section.
