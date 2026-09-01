@@ -1,0 +1,23 @@
+---
+
+antora:
+  name: modules
+  dir: www
+  modules:
+    - name: module-01
+      label: "UBI Baseline"
+      solveButton: false
+    - name: module-02
+      label: "Multi-Stage Hardened"
+      solveButton: false
+    - name: module-03
+      label: "FIPS Variant"
+      solveButton: false
+    - name: module-04
+      label: "TLS Reverse Proxy"
+      solveButton: false
+
+tabs:
+  - name: ">_ terminal"
+    url: /wetty
+

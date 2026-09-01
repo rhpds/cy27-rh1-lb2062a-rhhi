@@ -1,0 +1,44 @@
+---
+virtualmachines:
+  - name: "rhel"
+    image: "rhel-10-0-07-09-25-3"
+    bootloader: efi
+    memory: "4G"
+    cores: 1
+    image_size: "40G"
+    tags:
+      - key: "AnsibleGroup"
+        value: "bastions"
+    networks:
+      - default
+    packages:
+      - podman
+      - git
+      - jq
+      - nano
+      - emacs-nw
+    services:
+      - name: flask
+        ports:
+          - port: 8080
+            protocol: TCP
+            targetPort: 8080
+            name: flask
+      - name: caddy
+        ports:
+          - port: 8443
+            protocol: TCP
+            targetPort: 8443
+            name: caddy
+    routes:
+      - name: flask
+        host: flask
+        service: flask
+        targetPort: 8080
+        tls: false
+      - name: caddy
+        host: caddy
+        service: caddy
+        targetPort: 8443
+        tls: true
+        tls_termination: passthrough

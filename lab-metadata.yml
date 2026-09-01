@@ -1,0 +1,54 @@
+# lab-metadata.yml
+# Single Point of Truth for Lab Information
+
+lab:
+  name: "Building applications with Red Hat Hardened Images"
+  shortname: "zt-hardened-images"
+  maintainer: "Matt Micene (mmicene@redhat.com)" 
+  
+  description:
+    summary: "In this lab you will explore Red Hat Hardeded Images and how to use them"
+    goal: "You'll look at the different types of images published.
+    You'll understand how distroless images differ from typical base images.
+    You'll see how custom security stances and tools can be applied to applications."
+    concepts:
+      - "Distroless images"
+      - "Multi-stage builds"
+      - "Security benchmarks and image customizations"
+    use_case: "Get familliar with the new Red Hat Hardened Images development model"
+    time_to_complete: "25" # time in minutes
+    
+  # Git references for deployment
+  # Use a tag tied to a release for production, main for development
+  git_ref:
+    production: "prod"
+    development: "main"
+
+# DYNAMIC EXTRACTION SOURCES:
+# ===========================
+#
+# GENERATED FILES:
+# description.adoc: Generated from lab.description (goal, concepts, use_case)
+# README.md: Generated from configuration extraction (maintainer, summary, instances, networks, firewall)
+# dev.yaml: Generated using git_ref.development
+# prod.yaml: Generated using git_ref.production
+#
+# Example usage:
+# lab:
+#   name: "Red Hat OpenShift Networking Basics"
+#   shortname: "zt-networking-basics"
+#   
+#   description:
+#     summary: "Learn the fundamentals of networking in Red Hat OpenShift"
+#     goal: "Understand OpenShift networking concepts and configuration"
+#     concepts:
+#       - "OpenShift Services"
+#       - "Routes and Ingress"
+#       - "Network Policies"
+#     use_case: "Configure secure networking for containerized applications"
+#   
+#   git_ref:
+#     production: "prod"
+#     development: "dev"
+#
+#   maintainer: "Wilson Harris (wharris@redhat.com)"

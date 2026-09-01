@@ -1,0 +1,37 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: cy27-rh1-lb2062a-rhhi
+  title: cy27-rh1-lb2062a-rhhi
+  description: "Hands on with Red Hat Hardened Images, exploring simple uses to
+    more complex container builds, CVE scanning, SBOM creation, and image
+    signatures  "
+  annotations:
+    ph.rhdp.io/content-type: lab
+    ph.rhdp.io/deployment-mode: rhdp_published
+    ph.rhdp.io/github-user: nzwulfin
+    ph.rhdp.io/owner: psrivast@redhat.com
+    ph.rhdp.io/migrated-repo: https://github.com/rhel-labs/zt-hardened-images
+    backstage.io/techdocs-ref: dir:.
+    github.com/project-slug: rhpds/cy27-rh1-lb2062a-rhhi
+    ph.rhdp.io/created-at: 2026-09-01T23:00:38.193Z
+  tags:
+    - publishing-house
+    - lab
+    - rhdp-published
+    - migration
+  links:
+    - url: https://github.com/rhpds/cy27-rh1-lb2062a-rhhi
+      title: Repository
+      icon: github
+    - url: https://devspaces.apps.ocpv-infra02.wdc07.infra.demo.redhat.com#https://github.com/rhpds/cy27-rh1-lb2062a-rhhi
+      title: Open in DevSpaces
+      icon: catalog
+    - url: https://central-api-publishing-house.apps.ocpv-infra02.wdc07.infra.demo.redhat.com
+      title: Central
+      icon: dashboard
+spec:
+  type: content
+  lifecycle: experimental
+  owner: rhdp-team
+  system: publishing-house

@@ -1,0 +1,101 @@
+= Introduction to Red Hat Hardened Images
+.*Lab Overview*
+[sidebar]
+--
+*Learning Objectives:*
+
+* Understand available types of hardened images
+* Use service images and containerized tools
+* Create simple runtime applications with Python
+* Compare distroless vs distribution base images
+--
+
+[[introduction]]
+== Introduction
+
+In this lab, you'll get hands-on with Red Hat Hardened Images. You'll explore the three main categories of images (services, tools, and runtimes), understand the difference between distroless and traditional base images, and build your first containerized applications using these minimal, secure foundations.
+
+= UBI Baseline
+
+Red Hat Hardened Images (RHHI) are a catalog of distroless images designed for secure use: smaller attack surface, non-root by default, rebuilt rapidly when CVEs are patched. These images closely track upstream projects to deliver fixes and features faster.
+If this is the first time you've head any of these terms, not to worry, we'll talk more about them in a bit.
+
+Red Hat Universal Base Images (UBI) are distribution based images designed for ease of use: easy extendability, broader tool support, backporting for API preservation. These images closely track RHEL to deliver the same packages and lifecycles.
+
+This lab runs the same Flask application on a UBI base, a hardened base, a FIPS-enforcing base, and behind a TLS reverse proxy.  First, lets examine the UBI starting point that many of us work with today.
+
+== The Application
+
+The lab app is `rhhi-demo`, a small Flask web app pre-staged in `~/flask/`.
+It simply hashes submitted text using MD5, SHA-256, and SHA-512 with a default message included.
+
+[source,bash,role=execute]
+----
+ls ~/flask/
+----
+
+You'll see the application code (`app.py`) and three Containerfiles: `Containerfile.ubi`, `Containerfile.hardened`, and `Containerfile.fips`.
+
+== The UBI Containerfile
+
+[NOTE]
+====
+Throughout this lab, you'll see files marked with circled numbers and a numbered list following the file. These are to help draw your attention to particular parts of the file. These are part of the source file and also visible in the terminal via `cat` or `vi`. The numbers will not be included if you copy from one of the blocks.
+====
+
+[source,bash,role=execute]
+----
+cat ~/flask/Containerfile.ubi
+----
+[source,dockerfile]
+----
+include::example$flask/Containerfile.ubi[]
+----
+<.> Installing python tools in standard RHEL fashion
+<.> Need a non-root application user to own things
+
+This Containerfile is a conventional approach, and will be the comparison point for the rest of the lab.
+We install `pip` to the UBI base image to manage Python packages, then use it to install `flask` and any dependencies. 
+We can add our application user, install the app, then finish off the container details with any ports to expose and the runtime command.
+
+== Run the Application
+
+NOTE: The `rhhi-demo:ubi` image has been pre-built
+
+[source,bash,role=execute]
+----
+podman run -d --rm --name rhhi-ubi -p 8080:8080 rhhi-demo:ubi
+----
+
+Open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
+
+image::ubi-demo.png[]
+[WARNING]
+====
+If you are using a Chromium based browser, recent changes to the default HSTS policy may rewrite the application URL to HTTPS from HTTP and you will get an error page. 
+Edit the URL in the address bar to `http://` and reload the page. This should tell the browser to keep this URL as HTTP for the rest of the lab.
+====
+
+Feel free to enter some text, and click *Hash*.
+All three algorithms — MD5, SHA-256, SHA-512 — return a hex digest of the text.
+You can also see the starting image in the banner at the top of the page.
+This will help identify the source image for the container as we will re-use this URL throughout the lab.
+
+== What's in the Image?
+
+[source,bash,role=execute]
+----
+podman exec -it rhhi-ubi rpm -qa | wc -l
+----
+
+UBI includes packages that cover a broad range of use cases: development of new applications, network services, system init services. 
+That breadth is convenient for development but is surface area a production runtime does not need.
+
+== Stop the Container
+
+[source,bash,role=execute]
+----
+podman stop rhhi-ubi
+----
+
+Now that we've established the baseline application functionality on a traditional UBI base image, let's explore the changes brought by Red Hat Hardened Images.

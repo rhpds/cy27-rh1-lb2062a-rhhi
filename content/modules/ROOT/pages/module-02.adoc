@@ -1,0 +1,263 @@
+= Using Red Hat Hardened Images
+
+
+[[types]]
+== Available types of hardened images
+
+There are three main categories of images provided in the collection of hardened images: runtimes, services, and tools. Each of these are built in the same fashion but provide different capabilities.  Runtimes include various languages like `java`, `python`, and `dotnet` and also have `-builder` variants to allow for complex application tasks. Services include network based applications like `caddy`, `memcached`, and `haproxy` for deploying minimal versions of common services. Tools include things like `git`, `curl`, and `jq` for running a known containerized version in an isolated manner like within a CI pipeline.
+
+== Distroless vs distribution base images
+
+Hardened images are what's called 'distroless' images. These styles of images are targeted builds that skip certain shells and tools typically found in standard base images. Since package managers are usually part of that missing toolset, that's how the term 'distroless' was coined.
+
+Red Hat Hardened Images for Python come in variants.
+The `default` variant is distroless — no shell, no package manager, only what the interpreter needs at runtime.
+The `builder` variant adds bash, dnf, and shadow-utils for dependency installation.
+
+Starting with the default variant shows what distroless means in practice.
+
+== Try the Default Variant
+
+Create a new Containerfile using the default `hi/python:3.14` runtime:
+
+[source,bash,role=execute,subs=attributes+]
+----
+cat > ~/flask/Containerfile.hi << 'EOF'
+# Stage 1: Hardened base image
+FROM {rhhi-registry}/python:3.14 #<.>
+
+# Switch to root from the non-root user to install dependencies
+# By default, these install in /tmp/.local for the non-root user
+USER root
+RUN pip install flask
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the application files to the target directory
+# COPY always executes as root
+COPY --chown=65532 app.py . #<.>
+
+# Switch to the default non-root user for runtime
+USER ${CONTAINER_DEFAULT_USER} #<.>
+
+# Expose the port Flask will listen on
+EXPOSE 8080
+ENV RHHI_VARIANT=builder
+
+# Appropriately set the stop signal for the python interpreter executed as PID 1
+STOPSIGNAL SIGINT
+ENTRYPOINT ["python", "./app.py"]
+
+EOF
+----
+Distroless characteristics:
+
+<.> Change our base image to the hardened `default` image
+<.> Change the user in `COPY` to the provided default UID instead of adding `appuser`
+<.> Reset the USER with the provided ENV variable
+
+Let's go ahead and build the demo application on the `default` Python variant.
+[source,bash,role=execute]
+----
+podman build -t rhhi-demo:default -f ~/flask/Containerfile.hi ~/flask
+----
+
+.*Expected output (partial):*
+----
+STEP 4/10: RUN pip install flask
+error running container: from /usr/bin/crun creating container for [/bin/sh -c pip install flask]: executable file `/bin/sh` not found: No such file or directory
+: exit status 1
+Error: building at STEP "RUN pip install flask": while running runtime: exit status 1
+move noted after explanation, highlight it's interfering with the build more
+----
+What happened here? One of the changes to 'distroless' images like our new `default` is the removal of things like shells.
+Not only will this effect what can happen at runtime, but also impacts the build process.
+The `RUN` step executes provided commands (here `pip install`) by passing them to a shell in the image as a command line where the previous `COPY` instructions do not. 
+
+Without a shell, what can we do? Switch to the `builder` variant.
+
+[NOTE]
+====
+This failure is deliberate to pivot to our next topic. However if you know a binary or command is available in the image, like `pip` in the python runtime, you can use the "exec form" instead of the "shell form" for `RUN` like `CMD`:
+
+RUN ["/usr/bin/python", "-m",  "pip", "install", " flask" ]
+====
+
+== Switch to the Builder Variant
+
+The `builder` variant adds bash and other tools specifically for build steps like this.
+
+Edit the Containerfile and change the `FROM` to include the appropriate tag.
+[TIP]
+====
+The `nano` and `emacs` editors are also available if you feel more comfortable with those
+====
+[source,bash,role=execute,subs=attributes+]
+----
+vi ~/flask/Containerfile.hi
+----
+[source,dockerfile,subs=attributes+]
+----
+# Stage 1: Builder base image
+FROM {rhhi-registry}/python:3.14-builder #<.>
+----
+<.> The tagging format for `python` images is <version>-builder
+
+
+[source,bash,role=execute]
+----
+podman build -t rhhi-demo:builder -f ~/flask/Containerfile.hi ~/flask
+----
+....
+STEP 10/10: ENTRYPOINT ["python", "./app.py"]
+COMMIT rhhi-demo:builder
+--> 5dcfe9775e45
+Successfully tagged localhost/rhhi-demo:builder
+5dcfe9775e45221ead81a764e5052cc8b4dff94178a7d6fa9f510df71b32054f
+....
+
+The build succeeds.
+Run it to confirm the app works:
+
+[source,bash,role=execute]
+----
+podman run -d --rm --name rhhi-builder -p 8080:8080 rhhi-demo:builder
+----
+
+Open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser and confirm the app is working as expected.
+
+image::builder-demo.png[]
+
+Changing existing Containerfiles to use hardened images can be fairly straightforward, as in this case. To help understand the default settings for hardened images, we https://gitlab.com/redhat/hummingbird/containers/-/blob/main/images/python-3-14/hummingbird/default/compat.md[provide tables^] that compare them to upstream versions.
+This not only includes the properties, but also the reasoning behind any changes.
+
+
+== What's in the Builder Image?
+
+There are some other differences in the packages installed and the tools available. List the images just built. Note that the hardened image is just over half the size of the UBI based image.
+
+[source,bash,role=execute]
+----
+podman images rhhi-demo
+----
+
+.*Expected output:*
+----
+REPOSITORY           TAG         IMAGE ID      CREATED         SIZE
+localhost/rhhi-demo  builder     1d8177f35b89  48 seconds ago  195 MB
+localhost/rhhi-demo  ubi         5b0d4e2582f9  11 minutes ago  263 MB
+----
+The new image is smaller, but we've included everything in the `builder` image in our application, including a shell that we won't want in production.
+
+[source,bash,role=execute]
+----
+podman exec -it rhhi-builder /bin/sh -c 'ls -al /app'
+----
+
+The builder variant carries dnf, bash, shadow-utils, and their dependencies.
+These are needed at build time to *install* Flask, but they are not needed to *run* Flask.
+Shipping this image to production is about the equivalent of shipping a slightly smaller version of our UBI image.  
+We get faster CVE resolution, but the size and attack surface is still larger than necessary.  
+How can we ship just what we need for the runtime image to work in production?
+
+[source,bash,role=execute]
+----
+podman stop rhhi-builder 
+----
+== The Multi-Stage Solution
+
+Multi-stage builds allow you to separate the final application artifacts from build time components and to choose the smallest runtimes for production. 
+This keeps with the overall goal of minimal images, reduced attack and risk surfaces. 
+Multi-stage builds provide a good blend of flexibility and control.
+
+This will combine the use of different variants for different purposes.
+
+`Containerfile.hardened` separates the two concerns.
+Stage one uses the builder variant to install Flask into a prefix directory.
+The standard RUN command works as expected since the `builder` includes a shell.
+Stage two copies only that prefix into the lean default runtime — the builder and its packages are discarded.
+
+TIP: This is an extremely simple example for the purposes of this lab, production multi-stage builds can be much more complicated to increase isolation between build and runtime dependencies, including full compile chains that only copy final binaries.
+
+[source,bash,role=execute]
+----
+cat ~/flask/Containerfile.hardened
+----
+
+[source,dockerfile]
+----
+include::example$flask/Containerfile.hardened[]
+----
+<.> Stages create intermediate images
+<.> final stage doesn't get an AS, will use the tag from build command
+<.> --from uses the name provided in the FROM AS combination
+
+[source,bash,role=execute]
+----
+podman build -t rhhi-demo:hardened -f ~/flask/Containerfile.hardened ~/flask
+----
+Building this image, you'll see that `podman` creates a new image for each set of steps, delimited by the new `FROM` directive.
+The `AS` in that directive let's us refer to those images in later stages.
+The build output will have a new `[X/Y]` label for each step to show which stage of how many the step is in. 
+This makes finding issues in longer Containerfiles with many stages easier.
+
+....
+[2/2] STEP 1/9: FROM registry.access.redhat.com/hi/python:3.14
+....
+
+== Run the Hardened Image
+
+[source,bash,role=execute]
+----
+podman run -d --rm --name rhhi-hardened -p 8080:8080 rhhi-demo:hardened
+----
+Open link:http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
+
+image::hardened-demo.png[]
+
+The app behaves identically — same hashes, same form.
+The difference is what's under the app.
+
+== Compare all our images
+
+[source,bash,role=execute]
+----
+podman images rhhi-demo
+----
+
+.*Expected output:*
+----
+REPOSITORY           TAG         IMAGE ID      CREATED         SIZE
+localhost/rhhi-demo  hardened    fbd531176581  57 seconds ago  120 MB
+localhost/rhhi-demo  builder     1d8177f35b89  22 minutes ago  195 MB
+localhost/rhhi-demo  ubi         5b0d4e2582f9  33 minutes ago  263 MB
+----
+
+The multi-stage final output is smaller still.
+Let's look at the RPM counts.
+Our demo images set an application entrypoint, so we have to pass `--entrypoint` to run `rpm` directly instead.
+
+[source,bash,role=execute]
+----
+podman run --rm --entrypoint rpm rhhi-demo:ubi -qa | wc -l
+podman run --rm --entrypoint rpm rhhi-demo:builder -qa | wc -l
+podman run --rm --entrypoint rpm rhhi-demo:hardened -qa
+----
+
+.*Expected output (partial):*
+----
+Error: crun: executable file `rpm` not found in $PATH: No such file or directory: OCI runtime attempted to invoke a command that was not found
+----
+
+The hardened image has no `rpm` and no shell — both are absent by design.
+This is what distroless means in practice: the binary simply does not exist in the image.
+
+[source,bash,role=execute]
+----
+podman stop rhhi-hardened
+----
+
+The multi-stage runtime carries only what the interpreter needs at runtime.
+Build tools are in stage one and were never committed to the final image.
+Click *Next* to explore what happens when the image enforces FIPS-compliant cryptography.

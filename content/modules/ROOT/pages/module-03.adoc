@@ -1,0 +1,139 @@
+= Customized security images
+
+[[introduction]]
+== Introduction
+
+Beginning with a baseline that reduces the toil associated with identifying, researching, and, when possible, manually remediating CVEs while tracking exceptions is a good start to reducing friction on the path to production.
+
+However this isn’t the only security concern common to containerized application delivery. Nor is it the only control available when using Hardened Images. In this module we’ll look at a few examples of how to customize hardened images for specific security requirements like custom certificates and regulatory compliance.
+
+[[fips]]
+== Baselines for special use cases
+
+In addition to the `default` and `builder` variants already discussed, we also have variants designed around specific security profiles. One example is the `fips` variant, aimed at satisfying the needs of a containerized application that must meet the Federal Information Processing Standards (FIPS) 140-3 standard for security and interoperability.
+
+While this particular regulatory requirement may not be universal, it serves as a useful example of how we are exploring additional compliance measures on top of the baseline images and how these variants combine. It also shows how you can separate container enforcement from host enforcement to provide a better overall application security posture.
+
+The `fips` variant changes the algorithms available in the container and also uses the validated FIPS provider delivered in RHEL.  Note that while the algorithms are always enforced, the underlying host or cluster must also be operating in a FIPS mode to ensure full compliance. Like the `default`, a `-builder` variant exists to support multi-stage and other build patterns.
+
+=== Check FIPS mode on host
+
+In this lab, the host and cluster are *not* in FIPS mode, however the container restrictions will be enforced regardless. A `0` in the `fips_enabled` parameter means the kernel boot parameter was not set.
+
+For **full FIPS 140-3 compliance** (required for FedRAMP, DoD, and other regulatory frameworks):
+
+* Container must use `-fips` variant (provides validated crypto modules)
+* Host/cluster must enable FIPS mode (kernel boot parameter `fips=1`)
+* Hardware may need FIPS-validated TPM (for some compliance levels)
+
+We can still demonstrate how the container restricts algorithms as the image enforcement operates separately. Production deployments requiring certification would need both container AND host in FIPS mode.
+
+[source,bash,role=execute]
+----
+cat /proc/sys/crypto/fips_enabled
+----
+----
+0
+----
+
+== Build the FIPS Image
+
+`Containerfile.fips` follows the same multi-stage pattern as the hardened image, but uses `hi/python:3.14-fips` variants in the stages.
+
+[source,bash,role=execute]
+----
+diff ~/flask/Containerfile.fips ~/flask/Containerfile.hardened
+----
+
+[#image-change,diff]
+....
+2c2
+< FROM registry.access.redhat.com/hi/python:3.14-fips-builder AS deps
+---
+> FROM registry.access.redhat.com/hi/python:3.14-builder AS deps
+9c9
+< FROM registry.access.redhat.com/hi/python:3.14-fips
+---
+> FROM registry.access.redhat.com/hi/python:3.14
+26c26
+< ENV RHHI_VARIANT=fips
+---
+> ENV RHHI_VARIANT=hardened
+....
+
+We see the new variants in place and the updated environment variable passed to the application.
+Let's see the effect when we build.
+
+[source,bash,role=execute]
+----
+podman build -t rhhi-demo:fips -f ~/flask/Containerfile.fips ~/flask
+----
+....
+[1/2] STEP 1/3: FROM registry.access.redhat.com/hi/python:3.14-fips-builder AS deps
+[1/2] STEP 2/3: USER root
+--> 1b2d35ea580a
+  ... 
+[2/2] STEP 1/9: FROM registry.access.redhat.com/hi/python:3.14-fips
+[2/2] STEP 2/9: COPY --from=deps /install /usr/local
+--> 18de559bf142
+....
+
+The builder stage uses `hi/python:3.14-fips-builder`, the FIPS-compliant build variant.
+FIPS policy is enforced throughout: both the pip installation step and the application runtime run in a FIPS-enforcing environment.
+
+== Run the FIPS Image
+
+[source,bash,role=execute]
+----
+podman run -d --rm --name rhhi-fips -p 8080:8080 rhhi-demo:fips
+----
+
+Open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
+
+You'll see something like:
+
+image::fips-demo.png[]
+
+The MD5 row now shows an error.
+SHA-256 and SHA-512 are FIPS-approved and return results normally.
+The FIPS policy is enforced by the container's OpenSSL, not by the application code.
+The application didn't change — the base image did.
+
+The MD5 algorithm used in the application *isn't available at all*, meaning these sorts of errors show up during early development stages instead of in produciton.
+This container level enforcement can greatly reduces the potential for rework due to environmental constraints that can't be fully replicated in each environment.
+
+== Verify the Difference
+
+Stop the FIPS container and try the same request against the hardened non-FIPS image:
+
+[source,bash,role=execute]
+----
+podman stop rhhi-fips
+----
+
+[source,bash,role=execute]
+----
+podman run -d --rm --name rhhi-hardened -p 8080:8080 rhhi-demo:hardened
+----
+
+Open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
+
+MD5 returns a hex digest as the algorithm is once again available to the application.
+
+[source,bash,role=execute]
+----
+podman stop rhhi-hardened
+----
+
+== When Does This Matter?
+
+A FIPS-compliant base image enforces policy without requiring code changes.
+Applications that call non-approved algorithms fail at runtime, surfacing compliance gaps before deployment to regulated infrastructure.
+
+The same application, unmodified, runs on UBI, hardened, or FIPS — but its behavior differs because the runtime enforces different policy.
+This is the difference between hoping your application is compliant and verifying it is.
+
+While this example uses the FIPS specific image, this is also how we expect other new benchmark compliant images to behave in the future.
+We currently have plans for CIS and STIG images that can be used in the same way.
+
+Another common customization is additional SSL certificates. We'll explore how we can add things other than packages to images in the next section.
