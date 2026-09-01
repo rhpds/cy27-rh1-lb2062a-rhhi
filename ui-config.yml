@@ -8,12 +8,15 @@ antora:
       label: "UBI Baseline"
       solveButton: false
     - name: module-02
-      label: "Multi-Stage Hardened"
+      label: "Distroless & Variants"
       solveButton: false
     - name: module-03
-      label: "FIPS Variant"
+      label: "Multi-Stage & Operating"
       solveButton: false
     - name: module-04
+      label: "FIPS Variant"
+      solveButton: false
+    - name: module-05
       label: "TLS Reverse Proxy"
       solveButton: false
 

@@ -1,10 +1,10 @@
-= Using Red Hat Hardened Images
+= Hardened Image Variants
 
 
 [[types]]
 == Available types of hardened images
 
-There are three main categories of images provided in the collection of hardened images: runtimes, services, and tools. Each of these are built in the same fashion but provide different capabilities.  Runtimes include various languages like `java`, `python`, and `dotnet` and also have `-builder` variants to allow for complex application tasks. Services include network based applications like `caddy`, `memcached`, and `haproxy` for deploying minimal versions of common services. Tools include things like `git`, `curl`, and `jq` for running a known containerized version in an isolated manner like within a CI pipeline.
+There are three main categories of images provided in the collection of hardened images: runtimes, services, and tools. Each of these is built in the same fashion but provide different capabilities.  Runtimes include various languages like `java`, `python`, and `dotnet` and also have `-builder` variants to allow for complex application tasks. Services include network based applications like `caddy`, `memcached`, and `haproxy` for deploying minimal versions of common services. Tools include things like `git`, `curl`, and `jq` for running a known containerized version in an isolated manner like within a CI pipeline.
 
 == Distroless vs distribution base images
 
@@ -69,10 +69,9 @@ STEP 4/10: RUN pip install flask
 error running container: from /usr/bin/crun creating container for [/bin/sh -c pip install flask]: executable file `/bin/sh` not found: No such file or directory
 : exit status 1
 Error: building at STEP "RUN pip install flask": while running runtime: exit status 1
-move noted after explanation, highlight it's interfering with the build more
 ----
 What happened here? One of the changes to 'distroless' images like our new `default` is the removal of things like shells.
-Not only will this effect what can happen at runtime, but also impacts the build process.
+Not only will this affect what can happen at runtime, but it will also impact the build process.
 The `RUN` step executes provided commands (here `pip install`) by passing them to a shell in the image as a command line where the previous `COPY` instructions do not. 
 
 Without a shell, what can we do? Switch to the `builder` variant.
@@ -163,101 +162,7 @@ How can we ship just what we need for the runtime image to work in production?
 
 [source,bash,role=execute]
 ----
-podman stop rhhi-builder 
-----
-== The Multi-Stage Solution
-
-Multi-stage builds allow you to separate the final application artifacts from build time components and to choose the smallest runtimes for production. 
-This keeps with the overall goal of minimal images, reduced attack and risk surfaces. 
-Multi-stage builds provide a good blend of flexibility and control.
-
-This will combine the use of different variants for different purposes.
-
-`Containerfile.hardened` separates the two concerns.
-Stage one uses the builder variant to install Flask into a prefix directory.
-The standard RUN command works as expected since the `builder` includes a shell.
-Stage two copies only that prefix into the lean default runtime — the builder and its packages are discarded.
-
-TIP: This is an extremely simple example for the purposes of this lab, production multi-stage builds can be much more complicated to increase isolation between build and runtime dependencies, including full compile chains that only copy final binaries.
-
-[source,bash,role=execute]
-----
-cat ~/flask/Containerfile.hardened
+podman stop rhhi-builder
 ----
 
-[source,dockerfile]
-----
-include::example$flask/Containerfile.hardened[]
-----
-<.> Stages create intermediate images
-<.> final stage doesn't get an AS, will use the tag from build command
-<.> --from uses the name provided in the FROM AS combination
-
-[source,bash,role=execute]
-----
-podman build -t rhhi-demo:hardened -f ~/flask/Containerfile.hardened ~/flask
-----
-Building this image, you'll see that `podman` creates a new image for each set of steps, delimited by the new `FROM` directive.
-The `AS` in that directive let's us refer to those images in later stages.
-The build output will have a new `[X/Y]` label for each step to show which stage of how many the step is in. 
-This makes finding issues in longer Containerfiles with many stages easier.
-
-....
-[2/2] STEP 1/9: FROM registry.access.redhat.com/hi/python:3.14
-....
-
-== Run the Hardened Image
-
-[source,bash,role=execute]
-----
-podman run -d --rm --name rhhi-hardened -p 8080:8080 rhhi-demo:hardened
-----
-Open link:http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
-
-image::hardened-demo.png[]
-
-The app behaves identically — same hashes, same form.
-The difference is what's under the app.
-
-== Compare all our images
-
-[source,bash,role=execute]
-----
-podman images rhhi-demo
-----
-
-.*Expected output:*
-----
-REPOSITORY           TAG         IMAGE ID      CREATED         SIZE
-localhost/rhhi-demo  hardened    fbd531176581  57 seconds ago  120 MB
-localhost/rhhi-demo  builder     1d8177f35b89  22 minutes ago  195 MB
-localhost/rhhi-demo  ubi         5b0d4e2582f9  33 minutes ago  263 MB
-----
-
-The multi-stage final output is smaller still.
-Let's look at the RPM counts.
-Our demo images set an application entrypoint, so we have to pass `--entrypoint` to run `rpm` directly instead.
-
-[source,bash,role=execute]
-----
-podman run --rm --entrypoint rpm rhhi-demo:ubi -qa | wc -l
-podman run --rm --entrypoint rpm rhhi-demo:builder -qa | wc -l
-podman run --rm --entrypoint rpm rhhi-demo:hardened -qa
-----
-
-.*Expected output (partial):*
-----
-Error: crun: executable file `rpm` not found in $PATH: No such file or directory: OCI runtime attempted to invoke a command that was not found
-----
-
-The hardened image has no `rpm` and no shell — both are absent by design.
-This is what distroless means in practice: the binary simply does not exist in the image.
-
-[source,bash,role=execute]
-----
-podman stop rhhi-hardened
-----
-
-The multi-stage runtime carries only what the interpreter needs at runtime.
-Build tools are in stage one and were never committed to the final image.
-Click *Next* to explore what happens when the image enforces FIPS-compliant cryptography.
+Stop the container and let's explore some more minimization in the next exercise.

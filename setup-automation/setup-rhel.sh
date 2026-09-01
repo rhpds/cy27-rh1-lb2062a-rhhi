@@ -49,6 +49,7 @@ runuser -l rhel -c "podman pull registry.access.redhat.com/hi/python:3.14-builde
 runuser -l rhel -c "podman pull registry.access.redhat.com/hi/python:3.14"
 runuser -l rhel -c "podman pull registry.access.redhat.com/hi/python:3.14-fips"
 runuser -l rhel -c "podman pull registry.access.redhat.com/hi/python:3.14-fips-builder"
+runuser -l rhel -c "podman pull registry.access.redhat.com/hi/core-runtime:latest-builder"
 runuser -l rhel -c "podman pull registry.access.redhat.com/hi/caddy:latest"
 runuser -l rhel -c "podman pull registry.access.redhat.com/hi/curl:latest"
 runuser -l rhel -c "podman pull registry.access.redhat.com/hi/curl:latest-builder"

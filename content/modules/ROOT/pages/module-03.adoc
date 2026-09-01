@@ -1,139 +1,343 @@
-= Customized security images
+= Multi-Stage Builds and Operating Hardened Images
 
-[[introduction]]
-== Introduction
+Our application works fine, but we're carrying packages we don't explicitly need.
+What we need is a way to separate the run time and build time dependencies. 
+In Python, this may not be as critical as other languages, but we can still look at a pattern that makes that separation possible.
 
-Beginning with a baseline that reduces the toil associated with identifying, researching, and, when possible, manually remediating CVEs while tracking exceptions is a good start to reducing friction on the path to production.
+== The Multi-Stage Solution
 
-However this isn’t the only security concern common to containerized application delivery. Nor is it the only control available when using Hardened Images. In this module we’ll look at a few examples of how to customize hardened images for specific security requirements like custom certificates and regulatory compliance.
+Multi-stage builds allow you to separate the final application artifacts from build time components and even target different production runtime images.
 
-[[fips]]
-== Baselines for special use cases
+Stage one uses the builder variant to install Flask into a target directory.
+The standard RUN command works as expected since the `builder` includes a shell.
+Stage two copies only that directory into the lean default runtime — the builder and its packages are discarded.
 
-In addition to the `default` and `builder` variants already discussed, we also have variants designed around specific security profiles. One example is the `fips` variant, aimed at satisfying the needs of a containerized application that must meet the Federal Information Processing Standards (FIPS) 140-3 standard for security and interoperability.
+These may look like you took 2 different Containerfiles and used `cat` to combine them.
+Each stage is defined by a new `FROM` line, we'll see how that works in practice on our new `Containerfile.hardened` example.
 
-While this particular regulatory requirement may not be universal, it serves as a useful example of how we are exploring additional compliance measures on top of the baseline images and how these variants combine. It also shows how you can separate container enforcement from host enforcement to provide a better overall application security posture.
-
-The `fips` variant changes the algorithms available in the container and also uses the validated FIPS provider delivered in RHEL.  Note that while the algorithms are always enforced, the underlying host or cluster must also be operating in a FIPS mode to ensure full compliance. Like the `default`, a `-builder` variant exists to support multi-stage and other build patterns.
-
-=== Check FIPS mode on host
-
-In this lab, the host and cluster are *not* in FIPS mode, however the container restrictions will be enforced regardless. A `0` in the `fips_enabled` parameter means the kernel boot parameter was not set.
-
-For **full FIPS 140-3 compliance** (required for FedRAMP, DoD, and other regulatory frameworks):
-
-* Container must use `-fips` variant (provides validated crypto modules)
-* Host/cluster must enable FIPS mode (kernel boot parameter `fips=1`)
-* Hardware may need FIPS-validated TPM (for some compliance levels)
-
-We can still demonstrate how the container restricts algorithms as the image enforcement operates separately. Production deployments requiring certification would need both container AND host in FIPS mode.
+TIP: This is an extremely simple example for the purposes of this lab, production multi-stage builds can be much more complicated to increase isolation between build and runtime dependencies, including full compile chains that only copy final binaries.
 
 [source,bash,role=execute]
 ----
-cat /proc/sys/crypto/fips_enabled
-----
-----
-0
+cat ~/flask/Containerfile.hardened
 ----
 
-== Build the FIPS Image
-
-`Containerfile.fips` follows the same multi-stage pattern as the hardened image, but uses `hi/python:3.14-fips` variants in the stages.
+[source,dockerfile]
+----
+include::example$flask/Containerfile.hardened[]
+----
+<.> Stages create intermediate images
+<.> final stage doesn't get an AS, will use the tag from build command
+<.> --from uses the name provided in the FROM AS combination
 
 [source,bash,role=execute]
 ----
-diff ~/flask/Containerfile.fips ~/flask/Containerfile.hardened
+podman build -t rhhi-demo:hardened -f ~/flask/Containerfile.hardened ~/flask
 ----
+Building this image, you'll see that `podman` creates a new image for each set of steps, delimited by the new `FROM` directive.
+The `AS` in that directive lets us refer to those images in later stages.
+The build output will have a new `[X/Y]` label for each step to show which stage of how many the step is in. 
+This makes finding issues in longer Containerfiles with many stages easier.
 
-[#image-change,diff]
 ....
-2c2
-< FROM registry.access.redhat.com/hi/python:3.14-fips-builder AS deps
----
-> FROM registry.access.redhat.com/hi/python:3.14-builder AS deps
-9c9
-< FROM registry.access.redhat.com/hi/python:3.14-fips
----
-> FROM registry.access.redhat.com/hi/python:3.14
-26c26
-< ENV RHHI_VARIANT=fips
----
-> ENV RHHI_VARIANT=hardened
+[2/2] STEP 1/9: FROM registry.access.redhat.com/hi/python:3.14
 ....
 
-We see the new variants in place and the updated environment variable passed to the application.
-Let's see the effect when we build.
-
-[source,bash,role=execute]
-----
-podman build -t rhhi-demo:fips -f ~/flask/Containerfile.fips ~/flask
-----
-....
-[1/2] STEP 1/3: FROM registry.access.redhat.com/hi/python:3.14-fips-builder AS deps
-[1/2] STEP 2/3: USER root
---> 1b2d35ea580a
-  ... 
-[2/2] STEP 1/9: FROM registry.access.redhat.com/hi/python:3.14-fips
-[2/2] STEP 2/9: COPY --from=deps /install /usr/local
---> 18de559bf142
-....
-
-The builder stage uses `hi/python:3.14-fips-builder`, the FIPS-compliant build variant.
-FIPS policy is enforced throughout: both the pip installation step and the application runtime run in a FIPS-enforcing environment.
-
-== Run the FIPS Image
-
-[source,bash,role=execute]
-----
-podman run -d --rm --name rhhi-fips -p 8080:8080 rhhi-demo:fips
-----
-
-Open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
-
-You'll see something like:
-
-image::fips-demo.png[]
-
-The MD5 row now shows an error.
-SHA-256 and SHA-512 are FIPS-approved and return results normally.
-The FIPS policy is enforced by the container's OpenSSL, not by the application code.
-The application didn't change — the base image did.
-
-The MD5 algorithm used in the application *isn't available at all*, meaning these sorts of errors show up during early development stages instead of in produciton.
-This container level enforcement can greatly reduces the potential for rework due to environmental constraints that can't be fully replicated in each environment.
-
-== Verify the Difference
-
-Stop the FIPS container and try the same request against the hardened non-FIPS image:
-
-[source,bash,role=execute]
-----
-podman stop rhhi-fips
-----
+== Run the Hardened Image
 
 [source,bash,role=execute]
 ----
 podman run -d --rm --name rhhi-hardened -p 8080:8080 rhhi-demo:hardened
 ----
+Open link:http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
 
-Open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
+image::hardened-demo.png[]
 
-MD5 returns a hex digest as the algorithm is once again available to the application.
+The app behaves identically — same hashes, same form.
+The difference is what's under the app.
+
+== Compare all our images
+
+[source,bash,role=execute]
+----
+podman images rhhi-demo
+----
+
+.*Expected output:*
+----
+REPOSITORY           TAG         IMAGE ID      CREATED         SIZE
+localhost/rhhi-demo  hardened    fbd531176581  57 seconds ago  120 MB
+localhost/rhhi-demo  builder     1d8177f35b89  22 minutes ago  195 MB
+localhost/rhhi-demo  ubi         5b0d4e2582f9  33 minutes ago  263 MB
+----
+
+The multi-stage final output is smaller still.
+Let's look at the RPM counts.
+Our demo images set an application entrypoint, so we have to pass `--entrypoint` to run `rpm` directly instead.
+
+[source,bash,role=execute]
+----
+podman run --rm --entrypoint rpm rhhi-demo:ubi -qa | wc -l
+podman run --rm --entrypoint rpm rhhi-demo:builder -qa | wc -l
+podman run --rm --entrypoint rpm rhhi-demo:hardened -qa
+----
+
+.*Expected output (partial):*
+----
+Error: crun: executable file `rpm` not found in $PATH: No such file or directory: OCI runtime attempted to invoke a command that was not found
+----
+
+The multi-stage image has no `rpm` and no shell — both are absent by design since we deployed into the `default` runtime.
+This is what distroless means in practice: the binary simply does not exist in the image.
+
+== Looking Inside a Running Distroless Container
+
+The `rpm` command failed because the binary was stripped from the hardened image.
+That is the point of distroless — but it raises a real operational question.
+If a container misbehaves in production and it has no shell, no `rpm`, and no tools,
+how do you inspect it *without* rebuilding it to add those tools back?
+
+The answer is an ephemeral _debug sidecar_: a separate, disposable container that
+shares the target's process and network namespaces, brings its own tools, and
+disappears when you exit. The production image never changes.
+
+Even though the hardened image has no `rpm`, a sidecar can still answer what is
+installed. 
+
+[source,bash,role=execute,subs=attributes+]
+----
+podman run --rm \
+  --pid container:rhhi-hardened \
+  --network container:rhhi-hardened \
+  --security-opt label=disable \
+  --user 0 \
+  {rhhi-registry}/core-runtime:latest-builder \
+  rpm --root=/proc/1/root -qa | wc -l
+----
+
+Remember, new containers get their own filesystem, networking, and isolated process tree by default.
+We need to pass some specific options to make the sidecar "attach" to the container we want to examine.
+
+`--pid container:rhhi-hardened`:: Join the target's *process* namespace instead of creating one
+`--network container:rhhi-hardened`:: Reuse the target's *network* namespace 
+`--security-opt label=disable`:: Drop SELinux separation so the sidecar is allowed to read the target's `/proc` entries and files
+`--user 0`:: Run as root *inside the sidecar* for full read access to the target 
+
+The `rpm` command also needs to get access to the target filesystem, which is a little harder in a container.
+We can take advantage of the `/proc` filesystem which holds a special pointer to the filesystem of a process. 
+We'll talk more about this later.
+
+`rpm --root=/proc/1/root`:: Point `rpm` at the *target's* filesystem (reached through `/proc`), not the sidecar's own.
+
+By changing the SELinux options and explicitly passing a PID and network namespace, the sidecar will be able to interact with the running container instead of getting its own.
+
+.*Expected output (the exact count varies by image build):*
+----
+100
+----
+
+The tool missing in the original image runs from the sidecar, but against the application's own files.
+
+=== Build a Debug Sidecar
+
+Our one-shot sidecar was useful because `rpm` just happened to already be installed. For a real debugging tool, we'll need to add our tools. 
+Red Hat Hardened Images ships a set of images targeting dynamically compiled applications, which we will use here as a baseline for our debugger example.
+The `busybox` package is shipped as part of the packages, which will provide us with alternatives to common Linux tools.
+
+[source,bash,role=execute,subs=attributes+]
+----
+cat > ~/flask/Containerfile.debug << 'EOF'
+FROM {rhhi-registry}/core-runtime:latest-builder
+USER root
+RUN dnf -y install busybox && dnf clean all
+USER 65532
+CMD ["/bin/bash"]
+EOF
+----
+The builder base carries `rpm`, `bash`, `curl`, and coreutils; `busybox` adds the
+process and network inspection applets in a single package.
+Go ahead and build our new sidecar.
+
+[source,bash,role=execute]
+----
+podman build -t rhhi-debug -f ~/flask/Containerfile.debug ~/flask
+----
+
+The application image from earlier is still running as `rhhi-hardened`. 
+Attach an interactive sidecar to it — the same namespace-sharing flags as the one-shot above, now with `bash` as the command.
+This will open an interactive shell that lets us explore our running target container.
+
+[source,bash,role=execute]
+----
+podman run --rm -it \
+  --pid container:rhhi-hardened \
+  --network container:rhhi-hardened \
+  --security-opt label=disable \
+  --user 0 \
+  rhhi-debug bash
+----
+
+=== Reaching the App's Files
+
+The natural first move is to list the application directory:
+
+[source,bash,role=execute]
+----
+ls /app
+----
+
+.*Expected output:*
+----
+ls: cannot access '/app': No such file or directory
+----
+
+The sidecar shares the target's _process_ and _network_ namespaces, but each
+container keeps its own _filesystem_. `/app` lives in the target, not here.
+So how did we get the `rpmdb` in our one-shot?
+
+The kernel exposes every process's root filesystem at `/proc/<pid>/root`. 
+Because we share the PID namespace, the application is PID 1 — so `/proc/1/root` is the target's entire filesystem, viewed from the sidecar.
+
+[source,bash,role=execute]
+----
+ls -l /proc/1/root/app
+----
+
+.*Expected output:*
+----
+-rw-r--r--. 1 65532 65532 2224 ... app.py
+----
+
+Notice the user and group is the default non-root `65532` user.
+To confirm this is the real filesystem and not just an entry showing that a file exists somewhere, read the contents.
+
+[source,bash,role=execute]
+----
+head /proc/1/root/app/app.py
+----
+
+.*Expected output (partial):*
+----
+import os
+from flask import Flask, request, render_template_string
+import hashlib
+----
+
+That's the actual source of our application in its container.
+
+=== Inspecting the Running Process
+
+We added `busybox` to give us access to more tools without having to add a lot of extra packages to our sidecar.
+Because `busybox` applets may not be symlinked onto the `PATH`, first list what is available:
+
+[source,bash,role=execute]
+----
+busybox --list | pr -t -5
+----
+
+Every name in that list is an applet you invoke as `busybox <name>`. 
+Use it to see the target's processes:
+
+[source,bash,role=execute]
+----
+busybox ps -o pid,user,comm
+----
+
+.*Expected output (partial):*
+----
+    1 root     python3
+    2 root     bash
+----
+
+The application is PID 1 in the shared process namespace.
+It was run directly via the `CMD` when started, and as the sidecar _joins_ the existing namespace, the application stays as PID 1.
+You can also see the `bash` shell running in the sidecar as PID 2 instead of its own PID 1 like you normally would expect.
+
+What about open ports?
+We should see the application listening somewhere, and we can also get the PID associated.
+
+[source,bash,role=execute]
+----
+busybox netstat -tlnp
+----
+
+.*Expected output (partial):*
+----
+tcp   0   0 0.0.0.0:8080   0.0.0.0:*   LISTEN   1/python3
+----
+
+The socket belongs to PID 1 — the same process. 
+
+Finally, check the app over the shared network namespace:
+
+[source,bash,role=execute]
+----
+curl -s -o /dev/null -w "HTTP %{http_code}\n" localhost:8080/crypto-demo
+----
+
+.*Expected output:*
+----
+HTTP 200
+----
+
+`localhost` inside the sidecar is the application image's `localhost`, so the request reaches the app — none of which required a single tool inside the production image.
+
+Exit the sidecar. Because it was started with `--rm`, it is gone completely, and the
+hardened image is exactly as minimal as before.
+
+[source,bash,role=execute]
+----
+exit
+----
+
+[NOTE]
+====
+For production debugging, `procps-ng`, `iproute`, and `gdb` are available in the
+hummingbird repositories and can be added to the debug image the same way. The
+principle holds either way: debug tools live in a disposable sidecar, never in the
+shipped image.
+====
+
+////
+AUTHOR NOTE (not rendered): possible "Going Further" addition.
+
+A more advanced pattern adds RPMs to a distroless *runtime* image without
+regressing to the builder variant and without breaking the package manifest.
+Instead of COPY --from an install tree (which overwrites the base image's own
+rpmdb), the final stage bind-mounts the builder ephemerally to borrow its dnf
+toolchain and installs into the distroless root in place:
+
+  RUN --mount=type=bind,from=<builder-image>,target=/builder \
+      LD_LIBRARY_PATH=/builder/lib64:/builder/usr/lib64 \
+      RPM_CONFIGDIR=/builder/usr/lib/rpm \
+      /builder/usr/bin/dnf install -y --installroot=/ \
+      --setopt=reposdir=/builder/etc/yum.repos.d <packages>
+
+The base image's rpmdb is updated (dependencies resolved, manifest intact) and
+no package manager is committed to the final image.
+
+Judged too advanced for a hands-on step at this lab's altitude (bind mounts from
+images, borrowed toolchain env, installroot/rpmdb merge semantics), and the lab's
+Flask app needs no runtime RPMs to motivate it. Hold as reference only.
+
+A blog post covering this exact concept is in draft: "Chasing Zero CVEs: Lessons
+from a Real Container Build" (Pi-hole rebuilt on core-runtime). It walks the
+RUN --mount install, the installroot/COPY rpmdb-overwrite failure mode, and the
+grype/SBOM payoff. When it publishes, add a one-line link here (or a short
+"Going Further" NOTE) pointing readers to it instead of teaching the mechanic
+inline.
+
+That same post also describes the busybox debug sidecar taught above (a
+core-runtime:builder + busybox image used for `busybox --list`, `rpm -ql`, and
+`dnf --assumeno install` discovery), so it could also be linked from the
+"Looking Inside a Running Distroless Container" section.
+////
 
 [source,bash,role=execute]
 ----
 podman stop rhhi-hardened
 ----
 
-== When Does This Matter?
-
-A FIPS-compliant base image enforces policy without requiring code changes.
-Applications that call non-approved algorithms fail at runtime, surfacing compliance gaps before deployment to regulated infrastructure.
-
-The same application, unmodified, runs on UBI, hardened, or FIPS — but its behavior differs because the runtime enforces different policy.
-This is the difference between hoping your application is compliant and verifying it is.
-
-While this example uses the FIPS specific image, this is also how we expect other new benchmark compliant images to behave in the future.
-We currently have plans for CIS and STIG images that can be used in the same way.
-
-Another common customization is additional SSL certificates. We'll explore how we can add things other than packages to images in the next section.
+The multi-stage runtime carries only what the interpreter needs at runtime.
+Build tools are in stage one and were never committed to the final image.
+The next customization goes further still: enforcing FIPS-compliant cryptography at the OpenSSL level.

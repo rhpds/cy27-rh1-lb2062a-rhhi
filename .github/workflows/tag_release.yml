@@ -1,0 +1,22 @@
+on:
+  release:
+    types: [published]
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Update prod tag
+        run : |
+          git config user.name "Github Actions Runner"
+          git config user.email ""
+          git tag -fa prod -m "Move catalog tracking tag to latest release"
+          git push origin prod --force
+
