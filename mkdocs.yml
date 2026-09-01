@@ -1,0 +1,13 @@
+site_name: Red Hat Hardened Images
+docs_dir: publishing-house/spec
+nav:
+- Home: index.md
+- Design Spec: design.md
+- Modules:
+  - Module 1 - Ubi Baseline: modules/module-01-ubi-baseline.md
+  - Module 2 - Hardened Variants: modules/module-02-hardened-variants.md
+  - Module 3 - Multistage Builds: modules/module-03-multistage-builds.md
+  - Module 4 - Fips Variant: modules/module-04-fips-variant.md
+  - Module 5 - Tls Reverse Proxy: modules/module-05-tls-reverse-proxy.md
+plugins:
+- techdocs-core
