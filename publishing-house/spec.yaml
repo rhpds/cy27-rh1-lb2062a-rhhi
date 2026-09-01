@@ -30,7 +30,7 @@ spec:
   modules:
     - {id: module-01, title: "Introduction to Red Hat Hardened Images / UBI Baseline", duration_min: 15, status: not_started}
     - {id: module-02, title: "Hardened Image Variants (Distroless and Variants)", duration_min: 25, status: not_started}
-    - {id: module-03, title: "Multi-Stage Builds and Operating Hardened Images", duration_min: 40, status: not_started}
+    - {id: module-03, title: "Multi-Stage Builds and Operating Hardened Images", duration_min: 30, status: not_started}
     - {id: module-04, title: "Customized Security Images (FIPS Variant)", duration_min: 20, status: not_started}
     - {id: module-05, title: "TLS Reverse Proxy with Hardened Images", duration_min: 30, status: not_started}
     # [{id, title, duration_min}] — written by intake Phase 4; id is stable (e.g. module-01)
@@ -66,7 +66,7 @@ spec:
     external_services: []              # named external service dependencies e.g. [github.com]
     gpu_nodes: 0                       # number of GPU nodes (0 = none)
     gpu_type: ""                       # e.g. NVIDIA A100 40GB (required if gpu_nodes > 0)
-  duration_hours: 2.2
+  duration_hours: 2.0
   audience: "intermediate"               # beginner | intermediate | advanced
 
 development:
@@ -93,7 +93,7 @@ approval_checklist:
     prerequisites_verifiable: false
     assessment_strategy: ""
     catalog_gap: ""
-    design_overview: "A 130-minute intermediate hands-on lab that walks developers and platform engineers through Red Hat Hardened Images (RHHI) across five progressively complex modules: establishing a UBI size baseline, exploring distroless and builder variants, implementing multi-stage builds and debug sidecar operations, enforcing FIPS 140-3 cryptographic policy via the FIPS variant, and deploying a fully hardened Podman pod with a Caddy TLS reverse proxy and embedded CA trust. All work is performed via CLI on a per-student RHEL VM using Podman with a pre-staged Flask demo application; no OpenShift or Kubernetes knowledge is required."
+    design_overview: "A 120-minute intermediate hands-on lab that walks developers and platform engineers through Red Hat Hardened Images (RHHI) across five progressively complex modules: establishing a UBI size baseline, exploring distroless and builder variants, implementing multi-stage builds and debug sidecar operations, enforcing FIPS 140-3 cryptographic policy via the FIPS variant, and deploying a fully hardened Podman pod with a Caddy TLS reverse proxy and embedded CA trust. All work is performed via CLI on a per-student RHEL VM using Podman with a pre-staged Flask demo application; no OpenShift or Kubernetes knowledge is required."
     module_summaries:
       - title: "Introduction to Red Hat Hardened Images / UBI Baseline"
         overview: "Participants build and run the pre-staged rhhi-demo Flask application on a UBI base image using Podman, then record image size and installed package count as a measurable baseline for comparing all subsequent RHHI variants."

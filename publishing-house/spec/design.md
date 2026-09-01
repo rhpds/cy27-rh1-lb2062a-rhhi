@@ -46,10 +46,10 @@ Lab (hands-on)
 |--------|-------|----------|
 | 1 | Introduction to Red Hat Hardened Images / UBI Baseline | 15 min |
 | 2 | Hardened Image Variants (Distroless and Variants) | 25 min |
-| 3 | Multi-Stage Builds and Operating Hardened Images | 40 min |
+| 3 | Multi-Stage Builds and Operating Hardened Images | 30 min |
 | 4 | Customized Security Images (FIPS Variant) | 20 min |
 | 5 | TLS Reverse Proxy with Hardened Images | 30 min |
-| — | **Total hands-on** | **130 min (~2.2 hours)** |
+| — | **Total hands-on** | **120 min (2 hours)** |
 
 ## Difficulty Level
 
