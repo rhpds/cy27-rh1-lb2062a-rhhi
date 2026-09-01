@@ -94,7 +94,7 @@ approval_checklist:
   content:
     prerequisites_verifiable: false
     assessment_strategy: ""
-    catalog_gap: ""
+    catalog_gap: "This lab is the first in the RHDP catalog to cover Red Hat Hardened Images from a developer build perspective — distroless variants, multi-stage builds, shellless container debugging via debug sidecar, FIPS 140-3 container-level enforcement, and Podman pod TLS with custom CA trust. The only catalog item with meaningful overlap is the companion CVE scanning and image signing lab (zt-rhelbu.zt-scan-sign.prod, 41% relevance), which is intentionally scoped to a separate workshop running in the same session."
     design_overview: "A 120-minute intermediate hands-on lab that walks developers and platform engineers through Red Hat Hardened Images (RHHI) across five progressively complex modules: establishing a UBI size baseline, exploring distroless and builder variants, implementing multi-stage builds and debug sidecar operations, enforcing FIPS 140-3 cryptographic policy via the FIPS variant, and deploying a fully hardened Podman pod with a Caddy TLS reverse proxy and embedded CA trust. All work is performed via CLI on a per-student RHEL VM using Podman with a pre-staged Flask demo application; no OpenShift or Kubernetes knowledge is required."
     module_summaries:
       - title: "Introduction to Red Hat Hardened Images / UBI Baseline"
@@ -107,8 +107,23 @@ approval_checklist:
         overview: "Participants build and run the RHHI FIPS Python variant with no application code changes, observe that MD5 is blocked while SHA-256 and SHA-512 succeed, and confirm that FIPS 140-3 enforcement is container-level and independent of the host OS FIPS mode."
       - title: "TLS Reverse Proxy with Hardened Images"
         overview: "Participants deploy a Podman pod running the hardened Flask app and a Caddy TLS reverse proxy, encounter a TLS trust failure from an internal CA, extract and inspect the root certificate, then build a custom curl image with the CA bundle embedded to verify successful HTTPS access."
-    rcars_overlap_pct: null
-    rcars_top_matches: []
+    rcars_overlap_pct: 41
+    rcars_top_matches:
+      - title: "Security operations with Red Hat Hardened Images CVE scanning and image signing"
+        ci_name: "zt-rhelbu.zt-scan-sign.prod"
+        url: "https://catalog.demo.redhat.com/catalog?item=zt-rhelbu.zt-scan-sign.prod"
+        relevance_score: 41
+        why_it_fits: "Covers Red Hat Hardened Images and distroless containers, overlapping on the RHHI product focus, but targets CVE scanning, SBOMs, and image signing rather than multi-stage builds, shellless container debugging, or Podman pod TLS."
+      - title: "Managing Podman Pods with Quadlets and System Roles"
+        ci_name: "zt-rhelbu.zt-quadlet-pods-sysroles.prod"
+        url: "https://catalog.demo.redhat.com/catalog?item=zt-rhelbu.zt-quadlet-pods-sysroles.prod"
+        relevance_score: 35
+        why_it_fits: "Covers Podman pod deployment on RHEL, partially overlapping with module 5, but does not address hardened images, distroless/FIPS builds, multi-stage builds, or shellless container debugging."
+      - title: "Podman Rootless Container"
+        ci_name: "sandboxes-gpte.podman-rootless-container.prod"
+        url: "https://catalog.demo.redhat.com/catalog?item=sandboxes-gpte.podman-rootless-container.prod"
+        relevance_score: 31
+        why_it_fits: "Shares Podman and Buildah tooling but focuses on basic rootless containers and systemd services, with minimal alignment to hardened images or FIPS."
     rejections: []
 
   infra:

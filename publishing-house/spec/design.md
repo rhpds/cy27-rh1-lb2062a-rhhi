@@ -80,3 +80,15 @@ Automation must provision per-student RHEL VMs with the following pre-staged res
 - **External services:** `registry.access.redhat.com` (TCP 443 — RHHI and UBI image pulls at setup time and during the lab); lab Git repository (TCP 443 — sparse-cloned at provision time to stage `~/flask/` Containerfiles)
 - **AAP version:** N/A — not in products
 - **Non-GA products:** None — all RHHI images (`hi/python:3.14`, `hi/core-runtime:latest-builder`, `hi/caddy:latest`, `hi/curl:latest` and their variants) are publicly available on `registry.access.redhat.com`
+
+## Assessment Strategy
+
+This is a Zero-Touch lab with per-module automated validation. Each module has a corresponding validation script (`runtime-automation/module-NN/validation-rhel.sh`) that checks the expected container state, image list, and running processes. Students trigger validation via the Solve/Validate buttons in the Showroom UI.
+
+| Module | Validation Method | What Is Checked |
+|--------|-------------------|-----------------|
+| 1 | Automated script | `rhhi-demo:ubi` image exists in Podman; container ran successfully |
+| 2 | Automated script | `rhhi-demo:builder` image exists; size comparison output present |
+| 3 | Automated script | `rhhi-demo:hardened` multi-stage image exists; debug sidecar ran |
+| 4 | Automated script | `rhhi-demo:fips` image exists; FIPS enforcement observed in app output |
+| 5 | Automated script | Podman pod `rhhi-pod` completed; custom curl image with CA bundle built |
