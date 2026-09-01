@@ -20,9 +20,20 @@ project:
   workflow_id: "add7c4cd-27f5-43d6-a41e-fee82711fc56"
 
 spec:
-  title: ""
-  learning_objectives: []
-  modules: []              # [{id, title, duration_min}] — written by intake Phase 4; id is stable (e.g. module-01)
+  title: "Red Hat Hardened Images"
+  learning_objectives:
+    - "Build container images using Red Hat Hardened Image distroless, builder, and FIPS variants and compare image sizes against a UBI baseline"
+    - "Implement multi-stage builds to produce minimal, production-ready distroless container images"
+    - "Operate a running distroless container by building and attaching a debug sidecar using shared PID and network namespaces"
+    - "Verify FIPS 140-3 cryptographic policy enforcement by building and running the RHHI FIPS image variant and observing blocked and allowed cipher operations"
+    - "Deploy a Podman pod running a hardened application and a Caddy TLS reverse proxy, then resolve a certificate trust failure by embedding a CA bundle into a custom curl image"
+  modules:
+    - {id: module-01, title: "Introduction to Red Hat Hardened Images / UBI Baseline", duration_min: 15, status: not_started}
+    - {id: module-02, title: "Hardened Image Variants (Distroless and Variants)", duration_min: 25, status: not_started}
+    - {id: module-03, title: "Multi-Stage Builds and Operating Hardened Images", duration_min: 40, status: not_started}
+    - {id: module-04, title: "Customized Security Images (FIPS Variant)", duration_min: 20, status: not_started}
+    - {id: module-05, title: "TLS Reverse Proxy with Hardened Images", duration_min: 30, status: not_started}
+    # [{id, title, duration_min}] — written by intake Phase 4; id is stable (e.g. module-01)
   environment:
     platform: ""               # ocp | rhel-vms — determines which sizing fields apply
     topology: ""               # shared-cluster | per-student | cnv-pool
@@ -55,8 +66,8 @@ spec:
     external_services: []              # named external service dependencies e.g. [github.com]
     gpu_nodes: 0                       # number of GPU nodes (0 = none)
     gpu_type: ""                       # e.g. NVIDIA A100 40GB (required if gpu_nodes > 0)
-  duration_hours: null
-  audience: ""               # beginner | intermediate | advanced
+  duration_hours: 2.2
+  audience: "intermediate"               # beginner | intermediate | advanced
 
 development:
   automation:
@@ -79,7 +90,7 @@ tracking:
 approval_checklist:
 
   content:
-    prerequisites_verifiable: null
+    prerequisites_verifiable: false
     assessment_strategy: ""
     catalog_gap: ""
     design_overview: ""

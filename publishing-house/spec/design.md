@@ -1,89 +1,82 @@
-# [Project Title]
-
-<!-- This file is the design document for your lab or demo. -->
-<!-- Fill in each section below, or run /rhdp-publishing-house to have the intake skill help. -->
-<!-- Sections marked with [brackets] are placeholders — replace with real content. -->
-<!-- The validation gate checks for all required sections before submission. -->
+# Red Hat Hardened Images
 
 ## Overview
 
-[2-3 sentences on what this lab or demo is and why it exists. Then a direct description of what participants will do — specific enough that someone reading this section immediately understands the content without interpretation. No flowery language. Example: "Participants will deploy a 3-tier application on OpenShift, configure autoscaling, and troubleshoot a simulated pod failure."]
+This lab introduces Red Hat Hardened Images (RHHI), a catalog of minimized, security-hardened container images maintained by Red Hat as hardened alternatives to Universal Base Images. Participants work through a progression of container build patterns — from UBI baseline to distroless hardened images, multi-stage builds, FIPS-enforced cryptographic policy, and TLS reverse proxy deployment — using a pre-staged Flask application running on a RHEL host. By the end of the lab, participants will have built container images using multiple RHHI variants, compared security posture and footprint against UBI, operated a shellless distroless container using a debug sidecar, enforced FIPS 140-3 policy at the container level, and deployed a production-representative Podman pod with TLS termination backed by a custom trust bundle.
 
 ## Target Audience
 
-- **Role:** [Data scientists, platform engineers, developers, etc.]
-- **Experience level:** [Beginner, intermediate, or advanced]
-- **What they already know:** [Existing skills and knowledge]
-- **What they don't know:** [Skills this lab teaches]
+- **Role:** Developers and platform engineers evaluating Red Hat Hardened Images as a UBI replacement for production containerized workloads
+- **Experience level:** Intermediate
+- **What they already know:** Basic Linux CLI usage; conceptual understanding of containers (images, registries, running containers); no prior Podman expertise or Kubernetes/OpenShift knowledge required
+- **What they don't know:** RHHI image variants and their trade-offs; multi-stage Containerfile patterns; debugging containers without a shell; FIPS 140-3 container-level enforcement; Podman pod networking and TLS certificate trust
 
 ## Prerequisites
 
-- [What the learner must know or have completed before starting]
-- [Can the lab validate these automatically? Yes/No — brief explanation]
-
-<!-- If no prerequisites, write "None" -->
+- Basic Linux command-line proficiency (navigating directories, reading files, running commands in a terminal)
+- Conceptual familiarity with containers (what an image is, what a container does)
+- Cannot be validated automatically — no automated prerequisite check is implemented
 
 ## Learning Objectives
 
-1. [Action verb] [specific, measurable outcome]
-2. [Action verb] [specific, measurable outcome]
-3. [Action verb] [specific, measurable outcome]
-
-<!-- Scale to duration: up to 3 objectives per 45 min of content. Start with action verbs: Configure, Deploy, Create, Implement, Troubleshoot, Monitor, Scale. Each should be testable. NOT: Understand, Learn, Know. -->
+1. Build container images using Red Hat Hardened Image distroless, builder, and FIPS variants and compare image sizes against a UBI baseline
+2. Implement multi-stage builds to produce minimal, production-ready distroless container images
+3. Operate a running distroless container by building and attaching a debug sidecar using shared PID and network namespaces
+4. Verify FIPS 140-3 cryptographic policy enforcement by building and running the RHHI FIPS image variant and observing blocked and allowed cipher operations
+5. Deploy a Podman pod running a hardened application and a Caddy TLS reverse proxy, then resolve a certificate trust failure by embedding a CA bundle into a custom curl image
 
 ## Content Type
 
-[Lab (hands-on) or Demo (presenter-led)]
+Lab (hands-on)
 
 ## Products & Technologies
 
-- [Official Red Hat product name with version if relevant]
-- [Additional products/technologies]
-
-<!-- Use official names: "Red Hat OpenShift", not "OpenShift". List upstream projects separately. -->
+- Red Hat Hardened Images
+- Red Hat Enterprise Linux (RHEL)
+- Red Hat Universal Base Images (UBI) — used as baseline comparison
+- Podman
+- Caddy — web server and TLS reverse proxy (sourced from RHHI catalog)
+- OpenSSL — certificate inspection and FIPS policy verification
+- Flask (Python) — sample demo application
+- busybox — debug tooling installed in sidecar container
 
 ## Module Map
 
 | Module | Title | Duration |
 |--------|-------|----------|
-| 1 | [Module title] | [XX min] |
-| 2 | [Module title] | [XX min] |
-| — | **Total hands-on** | **[X hours]** |
-| — | Intro / presentation | [~XX min] |
-| — | **Total lab** | **[~X hours]** |
-
-<!-- Each module 10-30 min. Total: lab 1-4 hours, demo 15-45 min. Modules should build on each other. -->
+| 1 | Introduction to Red Hat Hardened Images / UBI Baseline | 15 min |
+| 2 | Hardened Image Variants (Distroless and Variants) | 25 min |
+| 3 | Multi-Stage Builds and Operating Hardened Images | 40 min |
+| 4 | Customized Security Images (FIPS Variant) | 20 min |
+| 5 | TLS Reverse Proxy with Hardened Images | 30 min |
+| — | **Total hands-on** | **130 min (~2.2 hours)** |
 
 ## Difficulty Level
 
-[Beginner, Intermediate, or Advanced]
+Intermediate
 
 ## Environment
 
-**Learner view:** [What exists when the lab starts — pre-deployed resources, what participants see and interact with. Be specific about cluster details.]
+**Learner view:** Participants access a RHEL virtual machine via a Wetty browser terminal. The Flask demo application (`rhhi-demo`) is pre-staged in `~/flask/`, with Containerfiles for UBI and RHHI variants ready to use. Module 5 additionally relies on pre-staged TLS configuration in `~/webserver/`. A browser tab to the running Flask application is available for observing runtime behavior (hash algorithm pass/fail in module 04; HTTPS verification in module 05). The RHHI image catalog is accessible at `registry.access.redhat.com`. Each student has an isolated environment accessed via a unique `{guid}.{domain}` URL.
 
-**Automation needed:** [Yes/No]
+**Automation needed:** Yes
 
-[If yes, list what automation must provision — operators, per-user resources, sample apps, data sets.]
+Automation must provision per-student RHEL VMs with the following pre-staged resources:
+- `~/flask/` directory containing the `rhhi-demo` Flask application source and all variant Containerfiles (UBI, distroless, builder, FIPS, multi-stage, sidecar)
+- `~/webserver/` directory with Caddy configuration and self-generated TLS certificate material for module 05
+- Podman pre-installed and configured with network access to `registry.access.redhat.com`
+- Wildcard DNS and routing configured for per-student `{guid}.{domain}` URLs
+- Ports 8080 (Flask) and 8443 (Caddy TLS) accessible from the learner's browser
 
 ## Infrastructure Requirements
 
-- **Cloud provider:** [CNV (default), AWS, or Troshka (bare-metal/nested virt)]
-- **Cluster type:** [Multinode or SNO (Single Node OpenShift)]
-- **OCP version:** [e.g. 4.20 — minimum 4.20]
-- **Topology:** [Shared cluster, per-student, or CNV pool]
-- **Sizing:** [Node types and counts with resources — e.g., "3 control plane (16 CPU, 64GB RAM), 6 workers (8 CPU, 32GB RAM, 100GB disk)"]
-- **Automation approach:** [Ansible, GitOps (Helm + ArgoCD), or combo]
-- **AI/MaaS:** [None, MaaS (open-source model), MaaS (frontier model), or dedicated GPU — include justification if not "none"]
-- **External services:** [Named services — e.g., github.com, registry.access.redhat.com — or "None"]
-- **AAP version:** [e.g. 2.5 — only if AAP is in products; omit otherwise]
-- **Non-GA products:** [Product name + version, with access plan — or "None (all products are GA)"]
-
-<!-- Not all fields must be known at intake. "TBD, estimating ~X" is fine. -->
-
-## Assessment Strategy (Optional)
-
-<!-- Optional — skip this section for demos or classic labs without verification. -->
-<!-- Relevant for Zero-Touch labs with solve/validate buttons or labs with automated checks. -->
-
-[If applicable: how will we know the learner successfully completed each module? Per module: verification script, solve/validate button, visible result in the UI, or automated check.]
+- **Cloud provider:** TBD — confirmed in infrastructure phase
+- **Cluster type:** TBD — confirmed in infrastructure phase
+- **OCP version:** TBD — confirmed in infrastructure phase
+- **Topology:** TBD — confirmed in infrastructure phase
+- **Sizing:** TBD — confirmed in infrastructure phase
+- **Automation approach:** TBD — confirmed in infrastructure phase
+- **AI/MaaS:** TBD — confirmed in infrastructure phase
+- **External services:** TBD — confirmed in infrastructure phase
+- **AAP version:** TBD — confirmed in infrastructure phase
+- **Non-GA products:** TBD — confirmed in infrastructure phase
