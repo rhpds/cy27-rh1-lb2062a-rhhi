@@ -3,9 +3,8 @@ kind: Component
 metadata:
   name: cy27-rh1-lb2062a-rhhi
   title: cy27-rh1-lb2062a-rhhi
-  description: "Hands on with Red Hat Hardened Images, exploring simple uses to
-    more complex container builds, CVE scanning, SBOM creation, and image
-    signatures  "
+  description: 'Hands on with Red Hat Hardened Images, exploring simple uses to more
+    complex container builds, CVE scanning, SBOM creation, and image signatures  '
   annotations:
     ph.rhdp.io/content-type: lab
     ph.rhdp.io/deployment-mode: rhdp_published
@@ -14,22 +13,25 @@ metadata:
     ph.rhdp.io/migrated-repo: https://github.com/rhel-labs/zt-hardened-images
     backstage.io/techdocs-ref: dir:.
     github.com/project-slug: rhpds/cy27-rh1-lb2062a-rhhi
-    ph.rhdp.io/created-at: 2026-09-01T23:00:38.193Z
+    ph.rhdp.io/created-at: 2026-09-01 23:00:38.193000+00:00
   tags:
-    - publishing-house
-    - lab
-    - rhdp-published
-    - migration
+  - publishing-house
+  - lab
+  - rhdp-published
+  - migration
   links:
-    - url: https://github.com/rhpds/cy27-rh1-lb2062a-rhhi
-      title: Repository
-      icon: github
-    - url: https://devspaces.apps.ocpv-infra02.wdc07.infra.demo.redhat.com#https://github.com/rhpds/cy27-rh1-lb2062a-rhhi
-      title: Open in DevSpaces
-      icon: catalog
-    - url: https://central-api-publishing-house.apps.ocpv-infra02.wdc07.infra.demo.redhat.com
-      title: Central
-      icon: dashboard
+  - url: https://github.com/rhpds/cy27-rh1-lb2062a-rhhi
+    title: Repository
+    icon: github
+  - url: https://devspaces.apps.ocpv-infra02.wdc07.infra.demo.redhat.com#https://github.com/rhpds/cy27-rh1-lb2062a-rhhi
+    title: Open in DevSpaces
+    icon: catalog
+  - url: https://central-api-publishing-house.apps.ocpv-infra02.wdc07.infra.demo.redhat.com
+    title: Central
+    icon: dashboard
+  - url: https://redhat.atlassian.net/browse/RHDPCD-1428
+    title: Jira Epic
+    icon: dashboard
 spec:
   type: content
   lifecycle: experimental

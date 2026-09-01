@@ -16,8 +16,8 @@ project:
   automation_type: "ansible"
   description: "Hands on with Red Hat Hardened Images, exploring simple uses to more complex container builds, CVE scanning, SBOM creation, and image signatures  "
   # content_reviewer_email and infra_reviewer_email are assigned by the RHDP team — not set by the author
-  jira_ticket: ""
-  workflow_id: ""
+  jira_ticket: "RHDPCD-1428"
+  workflow_id: "add7c4cd-27f5-43d6-a41e-fee82711fc56"
 
 spec:
   title: ""
