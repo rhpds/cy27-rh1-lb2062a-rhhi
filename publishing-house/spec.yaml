@@ -76,9 +76,9 @@ development:
     ansible:
       status: in_progress
   e2e:
-    status: in_progress
+    status: not_started
   healthCheck:
-    status: in_progress
+    status: not_started
 
 compliance:
   last_hard_check: null
