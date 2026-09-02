@@ -5,19 +5,19 @@ antora:
   modules:
     - name: index
       label: "Introduction"
-    - name: module-01
+    - name: module-01-ubi-baseline
       label: "UBI Baseline"
       solveButton: false
-    - name: module-02
+    - name: module-02-hardened-variants
       label: "Distroless & Variants"
       solveButton: false
-    - name: module-03
+    - name: module-03-multistage-builds
       label: "Multi-Stage & Operating"
       solveButton: false
-    - name: module-04
+    - name: module-04-fips-variant
       label: "FIPS Variant"
       solveButton: false
-    - name: module-05
+    - name: module-05-tls-reverse-proxy
       label: "TLS Reverse Proxy"
       solveButton: false
 
