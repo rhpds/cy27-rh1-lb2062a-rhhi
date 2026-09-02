@@ -18,7 +18,6 @@ antora:
   extensions:
     - require: /antora/lib/dev-mode.js
       enabled: true
-    - require: '@andrew-jones/antora-tabs-extension'
 
 output:
   dir: ./www
