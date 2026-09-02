@@ -28,11 +28,11 @@ spec:
     - "Verify FIPS 140-3 cryptographic policy enforcement by building and running the RHHI FIPS image variant and observing blocked and allowed cipher operations"
     - "Deploy a Podman pod running a hardened application and a Caddy TLS reverse proxy, then resolve a certificate trust failure by embedding a CA bundle into a custom curl image"
   modules:
-    - {id: module-01, title: "Introduction to Red Hat Hardened Images / UBI Baseline", duration_min: 15, status: not_started}
-    - {id: module-02, title: "Hardened Image Variants (Distroless and Variants)", duration_min: 25, status: not_started}
-    - {id: module-03, title: "Multi-Stage Builds and Operating Hardened Images", duration_min: 30, status: not_started}
-    - {id: module-04, title: "Customized Security Images (FIPS Variant)", duration_min: 20, status: not_started}
-    - {id: module-05, title: "TLS Reverse Proxy with Hardened Images", duration_min: 30, status: not_started}
+    - {id: module-01, title: "Introduction to Red Hat Hardened Images / UBI Baseline", duration_min: 15, status: in_progress}
+    - {id: module-02, title: "Hardened Image Variants (Distroless and Variants)", duration_min: 25, status: in_progress}
+    - {id: module-03, title: "Multi-Stage Builds and Operating Hardened Images", duration_min: 30, status: in_progress}
+    - {id: module-04, title: "Customized Security Images (FIPS Variant)", duration_min: 20, status: in_progress}
+    - {id: module-05, title: "TLS Reverse Proxy with Hardened Images", duration_min: 30, status: in_progress}
     # [{id, title, duration_min}] — written by intake Phase 4; id is stable (e.g. module-01)
   environment:
     platform: "rhel-vms"       # ocp | rhel-vms — determines which sizing fields apply
@@ -74,11 +74,11 @@ spec:
 development:
   automation:
     ansible:
-      status: not_started
+      status: in_progress
   e2e:
-    status: not_started
+    status: in_progress
   healthCheck:
-    status: not_started
+    status: in_progress
 
 compliance:
   last_hard_check: null
