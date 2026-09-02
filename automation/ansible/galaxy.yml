@@ -1,0 +1,10 @@
+---
+namespace: "cy27_rh1_lb2062a_rhhi"
+name: "automation"
+version: "1.0.0"
+readme: README.md
+authors:
+  - "nzwulfin psrivast@redhat.com"
+description: "Starter collection for this project's custom Ansible automation."
+license: []
+repository: "https://github.com/rhpds/cy27-rh1-lb2062a-rhhi"

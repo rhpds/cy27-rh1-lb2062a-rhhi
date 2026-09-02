@@ -1,9 +1,10 @@
 ---
-
 antora:
   name: modules
   dir: www
   modules:
+    - name: index
+      label: "Introduction"
     - name: module-01
       label: "UBI Baseline"
       solveButton: false
@@ -23,4 +24,3 @@ antora:
 tabs:
   - name: ">_ terminal"
     url: /wetty
-
