@@ -13,7 +13,7 @@
 [[introduction]]
 == Introduction
 
-In this lab, you'll get hands-on with Red Hat Hardened Images. You'll explore the three main categories of images (services, tools, and runtimes), understand the difference between distroless and traditional base images, and build your first containerized applications using these minimal, secure foundations.
+In this lab, you'll explore the three main categories of images (services, tools, and runtimes), understand the difference between distroless and traditional base images, and build your first containerized applications using these minimal, secure foundations.
 
 = UBI Baseline
 
