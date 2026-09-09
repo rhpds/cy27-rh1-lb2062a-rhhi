@@ -5,7 +5,9 @@
 
 Beginning with a baseline that reduces the toil associated with identifying, researching, and, when possible, manually remediating CVEs while tracking exceptions is a good start to reducing friction on the path to production.
 
-However this isn’t the only security concern common to containerized application delivery. Nor is it the only control available when using Hardened Images. In this module we’ll look at a few examples of how to customize hardened images for specific security requirements like custom certificates and regulatory compliance.
+However this isn’t the only security concern or stumbling block common to containerized application delivery. 
+Nor is it the only control available when using Hardened Images. 
+In this module we’ll look at a few examples of how to customize hardened images for specific security requirements like custom certificates and regulatory compliance.
 
 [[fips]]
 == Baselines for special use cases
@@ -80,6 +82,7 @@ podman build -t rhhi-demo:fips -f ~/flask/Containerfile.fips ~/flask
 
 The builder stage uses `hi/python:3.14-fips-builder`, the FIPS-compliant build variant.
 FIPS policy is enforced throughout: both the pip installation step and the application runtime run in a FIPS-enforcing environment.
+No other obvious changes from the build process.
 
 == Run the FIPS Image
 
@@ -88,7 +91,7 @@ FIPS policy is enforced throughout: both the pip installation step and the appli
 podman run -d --rm --name rhhi-fips -p 8080:8080 rhhi-demo:fips
 ----
 
-Open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
+Now open http://flask-{guid}.{domain}/crypto-demo[*the demo application*^] in your browser. 
 
 You'll see something like:
 

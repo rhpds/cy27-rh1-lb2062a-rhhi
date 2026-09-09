@@ -2,14 +2,14 @@
 
 Applications in production typically sit behind a reverse proxy that handles TLS.
 Organizations will often have internal certificates or authorities (CAs) that need to be used to provide appropriate chains of trust for signing.
-This module runs Flask and Caddy in a pod, and relies on Caddy’s built in TLS support to simulate a CA.
+Injecting custom internal CA certificates into images can be a challenge for application teams.
 
 == Create a Pod
 
 Pods in Podman share a network namespace, which makes them a useful tool for running multiple independent containers as a single application.
 This operates the same way as the debug sidecar did when executing `curl localhost` in the previous example.
 Caddy can reach Flask on `localhost:8080` without any explicit container-to-container networking.
-We won't be exposing that port outside the pod, just the TLS port Caddy will use.
+We won't be exposing that port outside the pod, just the TLS port Caddy will serve.
 
 [source,bash,role=execute]
 ----
@@ -40,7 +40,7 @@ NOTE: In your lab, the actual file will have the correct URL instead of the `<gu
 
 This configures Caddy to listen on the lab's external hostname with `tls internal` and reverse proxy to `localhost:8080`.
 Caddy will generate a certificate from its internal CA for that hostname.
-We can just pass our custom Caddyfile as a volume to the image, but for a more robust production use case, it may be better to create a fully custom image.
+For this lab, we will just pass our custom Caddyfile as a volume to the image, but for a more robust production use case, it may be better to create a fully custom image.
 
 [source,bash,role=execute,subs=attributes+]
 ----

@@ -4,17 +4,22 @@
 [[types]]
 == Available types of hardened images
 
-There are three main categories of images provided in the collection of hardened images: runtimes, services, and tools. Each of these is built in the same fashion but provide different capabilities.  Runtimes include various languages like `java`, `python`, and `dotnet` and also have `-builder` variants to allow for complex application tasks. Services include network based applications like `caddy`, `memcached`, and `haproxy` for deploying minimal versions of common services. Tools include things like `git`, `curl`, and `jq` for running a known containerized version in an isolated manner like within a CI pipeline.
+There are three main categories of images provided in the collection of hardened images: runtimes, services, and tools. Each of these is built in the same fashion but provide different capabilities.  
+Runtimes include various languages like `java`, `python`, and `dotnet` and also have `-builder` variants to allow for complex application tasks. 
+Services include network based applications like `caddy`, `memcached`, and `haproxy` for deploying minimal versions of common services. 
+Tools include things like `git`, `curl`, and `jq` for running a known containerized version in an isolated manner like within a CI pipeline.
 
 == Distroless vs distribution base images
 
-Hardened images are what's called 'distroless' images. These styles of images are targeted builds that skip certain shells and tools typically found in standard base images. Since package managers are usually part of that missing toolset, that's how the term 'distroless' was coined.
+Hardened images are what's called 'distroless' images. 
+These styles of images are targeted builds that skip certain shells and tools typically found in standard base images. 
+Since package managers are usually part of that missing toolset, that's how the term 'distroless' was coined.
 
 Red Hat Hardened Images for Python come in variants.
 The `default` variant is distroless — no shell, no package manager, only what the interpreter needs at runtime.
 The `builder` variant adds bash, dnf, and shadow-utils for dependency installation.
 
-Starting with the default variant shows what distroless means in practice.
+Starting with the `default` variant shows what distroless means in practice.
 
 == Try the Default Variant
 
