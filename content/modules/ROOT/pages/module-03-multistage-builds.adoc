@@ -236,13 +236,15 @@ You can use these like you would the standard Linux command it replaces.
 
 [source,bash,role=execute]
 ----
-busybox ps -o pid,user,comm
+busybox ps
 ----
 
-.*Expected output (partial):*
+.*Expected output :*
 ----
-    1 root     python3
-    2 root     bash
+PID   USER     TIME  COMMAND
+    1 root      0:00 python3 app.py
+    2 root      0:00 bash
+    3 root      0:00 busybox ps
 ----
 
 The application is PID 1 in the shared process namespace.
