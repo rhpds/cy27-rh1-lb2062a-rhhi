@@ -23,6 +23,7 @@ Starting with the `default` variant shows what distroless means in practice.
 
 == Try the Default Variant
 
+There are only a few changes we need to make from our UBI Containerfile to use the Red Hat Hardened Image.
 Create a new Containerfile using the default `hi/python:3.14` runtime:
 
 [source,bash,role=execute,subs=attributes+]
@@ -121,7 +122,7 @@ Successfully tagged localhost/rhhi-demo:builder
 5dcfe9775e45221ead81a764e5052cc8b4dff94178a7d6fa9f510df71b32054f
 ....
 
-The build succeeds.
+The `RUN pip` command now works and the build succeeds.
 Run it to confirm the app works:
 
 [source,bash,role=execute]
@@ -158,6 +159,12 @@ The new image is smaller, but we've included everything in the `builder` image i
 ----
 podman exec -it rhhi-builder /bin/sh -c 'ls -al /app'
 ----
+....
+total 4
+drwxr-xr-x. 2 65532 65532   20 Sep 11 18:11 .
+dr-xr-xr-x. 1 root  root    28 Sep 11 18:11 ..
+-rw-r--r--. 1 65532 65532 2224 Sep 11 17:50 app.py
+....
 
 The builder variant carries dnf, bash, shadow-utils, and their dependencies.
 These are needed at build time to *install* Flask, but they are not needed to *run* Flask.
