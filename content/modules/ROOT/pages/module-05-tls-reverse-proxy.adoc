@@ -173,7 +173,8 @@ The custom `curl` image will display the raw HTML of our application, with the t
 
 [source,bash,subs=attributes+,role=execute]
 ----
-podman run --rm rhhi-curl:local-ca -s https://caddy-{guid}.{domain}/crypto-demo
+podman run --rm rhhi-curl:local-ca -s \
+  https://caddy-{guid}.{domain}/crypto-demo
 ----
 ....
  <table>

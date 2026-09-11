@@ -126,7 +126,7 @@ We'll talk more about this later.
 
 .*Expected output (the exact count varies by image build):*
 ----
-100
+99
 ----
 
 The tool missing in the original image runs from the sidecar, but against the application's own files.
@@ -148,8 +148,7 @@ USER 65532
 CMD ["/bin/bash"]
 EOF
 ----
-This builder base image carries `rpm`, `bash`, `curl`, and coreutils; `busybox` adds the
-process and network inspection applets in a single package.
+This builder base image already provides `rpm`, `bash`, `curl`, and coreutils; `busybox` adds the process and network inspection applets in a single package.
 
 Go ahead and build this new interactive sidecar.
 
@@ -171,6 +170,9 @@ podman run --rm -it \
   --user 0 \
   rhhi-debug bash
 ----
+....
+bash-5.3# 
+....
 
 === Reaching the App's Files
 
@@ -243,8 +245,8 @@ busybox ps
 ----
 PID   USER     TIME  COMMAND
     1 root      0:00 python3 app.py
-    2 root      0:00 bash
-    3 root      0:00 busybox ps
+    4 root      0:00 bash
+   13 root      0:00 busybox ps
 ----
 
 The application is PID 1 in the shared process namespace.
@@ -259,9 +261,11 @@ We should see the application listening somewhere, and we can also get the PID a
 busybox netstat -tlnp
 ----
 
-.*Expected output (partial):*
+.*Expected output:*
 ----
-tcp   0   0 0.0.0.0:8080   0.0.0.0:*   LISTEN   1/python3
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address      Foreign Address     State       PID/Program name 
+tcp        0      0 0.0.0.0:8080       0.0.0.0:*           LISTEN      1/python3
 ----
 
 The socket belongs to PID 1, and the bound address is `INADDR_ANY` - all IPv4 addresses on the local host.
@@ -287,6 +291,14 @@ Exit the sidecar and the application container is still running, no new applicat
 exit
 ----
 
+[source,bash,role=execute]
+----
+podman ps
+----
+....
+CONTAINER ID  IMAGE                         COMMAND         CREATED        STATUS        PORTS                   NAMES
+aff6f9712870  localhost/rhhi-demo:hardened  python3 app.py  5 minutes ago  Up 5 minutes  0.0.0.0:8080->8080/tcp  rhhi-hardened
+....
 [NOTE]
 ====
 For production debugging, `procps-ng`, `iproute`, and `gdb` are available in the
@@ -294,41 +306,6 @@ hummingbird repositories and can be added to the debug image the same way. The
 principle holds either way: debug tools live in a disposable sidecar, never in the
 shipped image.
 ====
-
-////
-AUTHOR NOTE (not rendered): possible "Going Further" addition.
-
-A more advanced pattern adds RPMs to a distroless *runtime* image without
-regressing to the builder variant and without breaking the package manifest.
-Instead of COPY --from an install tree (which overwrites the base image's own
-rpmdb), the final stage bind-mounts the builder ephemerally to borrow its dnf
-toolchain and installs into the distroless root in place:
-
-  RUN --mount=type=bind,from=<builder-image>,target=/builder \
-      LD_LIBRARY_PATH=/builder/lib64:/builder/usr/lib64 \
-      RPM_CONFIGDIR=/builder/usr/lib/rpm \
-      /builder/usr/bin/dnf install -y --installroot=/ \
-      --setopt=reposdir=/builder/etc/yum.repos.d <packages>
-
-The base image's rpmdb is updated (dependencies resolved, manifest intact) and
-no package manager is committed to the final image.
-
-Judged too advanced for a hands-on step at this lab's altitude (bind mounts from
-images, borrowed toolchain env, installroot/rpmdb merge semantics), and the lab's
-Flask app needs no runtime RPMs to motivate it. Hold as reference only.
-
-A blog post covering this exact concept is in draft: "Chasing Zero CVEs: Lessons
-from a Real Container Build" (Pi-hole rebuilt on core-runtime). It walks the
-RUN --mount install, the installroot/COPY rpmdb-overwrite failure mode, and the
-grype/SBOM payoff. When it publishes, add a one-line link here (or a short
-"Going Further" NOTE) pointing readers to it instead of teaching the mechanic
-inline.
-
-That same post also describes the busybox debug sidecar taught above (a
-core-runtime:builder + busybox image used for `busybox --list`, `rpm -ql`, and
-`dnf --assumeno install` discovery), so it could also be linked from the
-"Looking Inside a Running Distroless Container" section.
-////
 
 [source,bash,role=execute]
 ----

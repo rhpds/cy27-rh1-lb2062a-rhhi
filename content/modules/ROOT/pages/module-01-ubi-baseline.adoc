@@ -87,6 +87,9 @@ This will help identify the source image for the container as we will re-use thi
 ----
 podman exec -it rhhi-ubi rpm -qa | wc -l
 ----
+....
+176
+....
 
 UBI includes packages that cover a broad range of use cases: development of new applications, network services, system init services. 
 That breadth is convenient for development but adds surface area a production runtime does not need.
