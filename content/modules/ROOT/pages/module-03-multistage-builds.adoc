@@ -241,7 +241,7 @@ You can use these like you would the standard Linux command it replaces.
 busybox ps
 ----
 
-.*Expected output (partial):*
+.*Expected output :*
 ----
 PID   USER     TIME  COMMAND
     1 root      0:00 python3 app.py
