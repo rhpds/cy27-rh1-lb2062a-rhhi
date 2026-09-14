@@ -1,0 +1,10 @@
+= Conclusion
+
+Congratulations on completing the Red Hat Hardened Images lab.
+
+Over the course of this lab you built and compared image variants, implemented multi-stage builds, debugged a shellless distroless container using a sidecar, enforced FIPS 140-3 cryptographic policy at the container level, and deployed a Podman pod with a Caddy TLS reverse proxy and custom CA trust.
+
+== What's Next
+
+* https://catalog.demo.redhat.com/catalog?item=zt-rhelbu.zt-scan-sign.prod[Security operations with Red Hat Hardened Images — CVE scanning and image signing]
+* https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/10/html/using_red_hat_hardened_images/index[Red Hat Hardened Images documentation]
