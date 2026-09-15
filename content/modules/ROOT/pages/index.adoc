@@ -1,7 +1,7 @@
 = Red Hat Hardened Images
 
-Welcome to the Red Hat Hardened Images lab.
+Welcome to the Introduction to Red Hat Hardened Images lab.
 
-In this lab you will explore RHHI distroless, builder, and FIPS image variants,
-implement multi-stage builds, operate shellless containers, enforce FIPS 140-3 policy,
-and deploy a hardened Podman pod with TLS termination.
+In this lab you'll get hands on with Red Hat Hardened Images and explore the differnt variants of images available, implement different build strategies, and enforce image level security policy.
+
+You'll also look at how operating and troubleshooting these distroless, minimal containers differs than typical containerized applications, from basic inspection to injecting custom certificates.

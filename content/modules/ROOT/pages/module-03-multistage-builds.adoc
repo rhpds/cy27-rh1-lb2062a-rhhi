@@ -6,7 +6,7 @@ In Python, this may not be as critical as other languages, but we can still look
 
 == The Multi-Stage Solution
 
-Multi-stage builds allow you to separate the final application artifacts from build time components and even target different production runtime images.
+Multi-stage builds divide the work into blocks of base images and instructions, in the same fashion as the all-in-one approach we've used this far.
 
 Stage one uses the builder variant to install Flask into a target directory.
 The standard RUN command works as expected since the `builder` includes a shell.
@@ -71,7 +71,7 @@ localhost/rhhi-demo  builder     1d8177f35b89  22 minutes ago  195 MB
 localhost/rhhi-demo  ubi         5b0d4e2582f9  33 minutes ago  263 MB
 ----
 
-The multi-stage final output is smaller still.
+The multi-stage final output is the smallest yet.
 Let's look at the RPM counts.
 Our demo images set an application entrypoint, so we have to pass `--entrypoint` to run `rpm` directly instead.
 
@@ -92,17 +92,12 @@ This is what distroless means in practice: the binary simply does not exist in t
 
 == Looking Inside a Running Distroless Container
 
-The `rpm` command failed because the binary was stripped from the hardened image.
-That is the point of distroless — but it raises a real operational question.
 If a container misbehaves in production and it has no shell, no `rpm`, and no tools,
 how do you inspect it *without* rebuilding it to add those tools back?
 
-The answer is an ephemeral _debug sidecar_: a separate, disposable container that
-shares the target's process and network namespaces, brings its own tools, and
-disappears when you exit. The production image never changes.
+The answer is an ephemeral _debug sidecar_: a separate, disposable container that brings its own tools, but shares the target's process and network namespaces at run time.
 
-Even though the hardened image has no `rpm`, a sidecar can still answer what is
-installed. 
+This second container can answer what is installed in our multi-stage image. 
 
 [source,bash,role=execute,subs=attributes+]
 ----
@@ -118,22 +113,20 @@ podman run --rm \
 Remember, new containers get their own filesystem, networking, and isolated process tree by default.
 We need to pass some specific options to make the sidecar "attach" to the container we want to examine.
 
-`--pid container:rhhi-hardened`:: Join the target's *process* namespace instead of creating one
-`--network container:rhhi-hardened`:: Reuse the target's *network* namespace 
+`--pid container:rhhi-hardened`:: Join the *target's* process namespace instead of creating one
+`--network container:rhhi-hardened`:: Reuse the *target's* network namespace 
 `--security-opt label=disable`:: Drop SELinux separation so the sidecar is allowed to read the target's `/proc` entries and files
 `--user 0`:: Run as root *inside the sidecar* for full read access to the target 
 
-The `rpm` command also needs to get access to the target filesystem, which is a little harder in a container.
+The `rpm` command also needs to read the target's `rpmdb`, which is a little harder in a container.
 We can take advantage of the `/proc` filesystem which holds a special pointer to the filesystem of a process. 
 We'll talk more about this later.
 
 `rpm --root=/proc/1/root`:: Point `rpm` at the *target's* filesystem (reached through `/proc`), not the sidecar's own.
 
-By changing the SELinux options and explicitly passing a PID and network namespace, the sidecar will be able to interact with the running container instead of getting its own.
-
 .*Expected output (the exact count varies by image build):*
 ----
-100
+99
 ----
 
 The tool missing in the original image runs from the sidecar, but against the application's own files.
@@ -144,6 +137,7 @@ Our one-shot sidecar was useful because `rpm` just happened to already be instal
 Red Hat Hardened Images ships a set of images targeting dynamically compiled applications, which we will use here as a baseline for our debugger example.
 The `busybox` package is shipped as part of the packages, which will provide us with alternatives to common Linux tools.
 
+This makes for a very simple Containerfile, note we're explicitly calling `bash` on start.
 [source,bash,role=execute,subs=attributes+]
 ----
 cat > ~/flask/Containerfile.debug << 'EOF'
@@ -154,9 +148,9 @@ USER 65532
 CMD ["/bin/bash"]
 EOF
 ----
-The builder base carries `rpm`, `bash`, `curl`, and coreutils; `busybox` adds the
-process and network inspection applets in a single package.
-Go ahead and build our new sidecar.
+This builder base image already provides `rpm`, `bash`, `curl`, and coreutils; `busybox` adds the process and network inspection applets in a single package.
+
+Go ahead and build this new interactive sidecar.
 
 [source,bash,role=execute]
 ----
@@ -164,7 +158,7 @@ podman build -t rhhi-debug -f ~/flask/Containerfile.debug ~/flask
 ----
 
 The application image from earlier is still running as `rhhi-hardened`. 
-Attach an interactive sidecar to it — the same namespace-sharing flags as the one-shot above, now with `bash` as the command.
+Attach this interactive sidecar to it — the same namespace-sharing flags as the one-shot above, now with `bash` as the command.
 This will open an interactive shell that lets us explore our running target container.
 
 [source,bash,role=execute]
@@ -176,6 +170,9 @@ podman run --rm -it \
   --user 0 \
   rhhi-debug bash
 ----
+....
+bash-5.3# 
+....
 
 === Reaching the App's Files
 
@@ -196,7 +193,7 @@ container keeps its own _filesystem_. `/app` lives in the target, not here.
 So how did we get the `rpmdb` in our one-shot?
 
 The kernel exposes every process's root filesystem at `/proc/<pid>/root`. 
-Because we share the PID namespace, the application is PID 1 — so `/proc/1/root` is the target's entire filesystem, viewed from the sidecar.
+Because we share the PID namespace, the application is PID 1 — so `/proc/1/root` is the target's entire filesystem.
 
 [source,bash,role=execute]
 ----
@@ -209,7 +206,7 @@ ls -l /proc/1/root/app
 ----
 
 Notice the user and group is the default non-root `65532` user.
-To confirm this is the real filesystem and not just an entry showing that a file exists somewhere, read the contents.
+To confirm this is the real filesystem and not just an entry showing that a file exists somewhere, check the contents of the `app.py` file.
 
 [source,bash,role=execute]
 ----
@@ -236,17 +233,20 @@ busybox --list | pr -t -5
 ----
 
 Every name in that list is an applet you invoke as `busybox <name>`. 
-Use it to see the target's processes:
+
+You can use these like you would the standard Linux command it replaces.
 
 [source,bash,role=execute]
 ----
-busybox ps -o pid,user,comm
+busybox ps
 ----
 
-.*Expected output (partial):*
+.*Expected output :*
 ----
-    1 root     python3
-    2 root     bash
+PID   USER     TIME  COMMAND
+    1 root      0:00 python3 app.py
+    4 root      0:00 bash
+   13 root      0:00 busybox ps
 ----
 
 The application is PID 1 in the shared process namespace.
@@ -261,12 +261,14 @@ We should see the application listening somewhere, and we can also get the PID a
 busybox netstat -tlnp
 ----
 
-.*Expected output (partial):*
+.*Expected output:*
 ----
-tcp   0   0 0.0.0.0:8080   0.0.0.0:*   LISTEN   1/python3
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address      Foreign Address     State       PID/Program name 
+tcp        0      0 0.0.0.0:8080       0.0.0.0:*           LISTEN      1/python3
 ----
 
-The socket belongs to PID 1 — the same process. 
+The socket belongs to PID 1, and the bound address is `INADDR_ANY` - all IPv4 addresses on the local host.
 
 Finally, check the app over the shared network namespace:
 
@@ -280,16 +282,23 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" localhost:8080/crypto-demo
 HTTP 200
 ----
 
-`localhost` inside the sidecar is the application image's `localhost`, so the request reaches the app — none of which required a single tool inside the production image.
+`localhost` inside the sidecar is the same as the application's `localhost`, since they share the namespace.
 
-Exit the sidecar. Because it was started with `--rm`, it is gone completely, and the
-hardened image is exactly as minimal as before.
+Exit the sidecar and the application container is still running, no new application debug image or tools copied into it.
 
 [source,bash,role=execute]
 ----
 exit
 ----
 
+[source,bash,role=execute]
+----
+podman ps
+----
+....
+CONTAINER ID  IMAGE                         COMMAND         CREATED        STATUS        PORTS                   NAMES
+aff6f9712870  localhost/rhhi-demo:hardened  python3 app.py  5 minutes ago  Up 5 minutes  0.0.0.0:8080->8080/tcp  rhhi-hardened
+....
 [NOTE]
 ====
 For production debugging, `procps-ng`, `iproute`, and `gdb` are available in the
@@ -298,46 +307,12 @@ principle holds either way: debug tools live in a disposable sidecar, never in t
 shipped image.
 ====
 
-////
-AUTHOR NOTE (not rendered): possible "Going Further" addition.
-
-A more advanced pattern adds RPMs to a distroless *runtime* image without
-regressing to the builder variant and without breaking the package manifest.
-Instead of COPY --from an install tree (which overwrites the base image's own
-rpmdb), the final stage bind-mounts the builder ephemerally to borrow its dnf
-toolchain and installs into the distroless root in place:
-
-  RUN --mount=type=bind,from=<builder-image>,target=/builder \
-      LD_LIBRARY_PATH=/builder/lib64:/builder/usr/lib64 \
-      RPM_CONFIGDIR=/builder/usr/lib/rpm \
-      /builder/usr/bin/dnf install -y --installroot=/ \
-      --setopt=reposdir=/builder/etc/yum.repos.d <packages>
-
-The base image's rpmdb is updated (dependencies resolved, manifest intact) and
-no package manager is committed to the final image.
-
-Judged too advanced for a hands-on step at this lab's altitude (bind mounts from
-images, borrowed toolchain env, installroot/rpmdb merge semantics), and the lab's
-Flask app needs no runtime RPMs to motivate it. Hold as reference only.
-
-A blog post covering this exact concept is in draft: "Chasing Zero CVEs: Lessons
-from a Real Container Build" (Pi-hole rebuilt on core-runtime). It walks the
-RUN --mount install, the installroot/COPY rpmdb-overwrite failure mode, and the
-grype/SBOM payoff. When it publishes, add a one-line link here (or a short
-"Going Further" NOTE) pointing readers to it instead of teaching the mechanic
-inline.
-
-That same post also describes the busybox debug sidecar taught above (a
-core-runtime:builder + busybox image used for `busybox --list`, `rpm -ql`, and
-`dnf --assumeno install` discovery), so it could also be linked from the
-"Looking Inside a Running Distroless Container" section.
-////
-
 [source,bash,role=execute]
 ----
 podman stop rhhi-hardened
 ----
 
 The multi-stage runtime carries only what the interpreter needs at runtime.
-Build tools are in stage one and were never committed to the final image.
-The next customization goes further still: enforcing FIPS-compliant cryptography at the OpenSSL level.
+Build tools are in stage one and never committed to the final image.
+Ephemeral sidecars can provide debugging and troubleshooting without the need for complex builds or substituting images.
+Next up, we'll examine another variant that allows us to control security policies for our applications in the base image.
