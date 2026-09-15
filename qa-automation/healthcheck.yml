@@ -1,15 +1,23 @@
 ---
-# HEALTHCHECK — Quick environment readiness check
-# Runs post-provisioning to verify the lab environment is functional.
-# Should complete in under 60 seconds.
-#
-# Exit 0 = healthy, non-zero = unhealthy.
+# Healthcheck QA — verifies lab hosts are reachable via SSH.
+# Non-destructive: does not modify any lab state.
 
-- name: "Environment Health Check"
+- name: Build inventory
   hosts: localhost
-  connection: local
   gather_facts: false
   tasks:
-    - name: "TODO: Implement health checks"
-      ansible.builtin.debug:
-        msg: "Replace this task with checks that verify the environment is ready"
+    - name: Add bastion host
+      ansible.builtin.add_host:
+        name: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        ansible_ssh_host: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') }}"
+        ansible_ssh_user: "{{ lookup('ansible.builtin.env', 'BASTION_USER') }}"
+        ansible_ssh_pass: "{{ lookup('ansible.builtin.env', 'BASTION_PASSWORD') }}"
+
+- name: Healthcheck
+  hosts: all:!localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Verify SSH connectivity
+      ansible.builtin.ping:
