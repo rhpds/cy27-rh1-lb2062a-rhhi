@@ -12,9 +12,9 @@ This module introduces the Red Hat Hardened Images lab and establishes a UBI bas
 
 ### Learning Objectives
 
-- Examine a UBI-based Containerfile and understand the conventional approach to containerizing a Python application
-- Run the pre-built UBI container and confirm the Flask application is serving responses correctly
-- Observe the UBI installed package count as a measurable baseline for later comparison
+- Review a UBI-based Containerfile and identify the key build steps for a Python application
+- Run the pre-built UBI container and access the Flask application in a browser
+- Observe the UBI installed package count and understand its relationship to container attack surface
 
 ### Lab Structure
 
