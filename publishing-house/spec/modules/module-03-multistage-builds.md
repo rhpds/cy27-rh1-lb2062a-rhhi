@@ -8,7 +8,7 @@ This module introduces the multi-stage build pattern as the production-ready sol
 
 - **Persona:** Developers or platform engineers who completed modules 01 and 02 and are comfortable with basic Containerfile syntax and the reason distroless images have no shell
 - **Prerequisites for this module:** Modules 01 and 02 complete; understanding of why distroless images cannot use `RUN` shell commands
-- **Duration:** 40 minutes
+- **Duration:** 30 minutes
 
 ### Learning Objectives
 
@@ -28,23 +28,24 @@ This module introduces the multi-stage build pattern as the production-ready sol
 
 ### Detailed Steps
 
-1. Examine the multi-stage Containerfile: `cat ~/flask/Containerfile.hi-multistage`. Identify stage 1 (`FROM hi/python:3.14-builder AS builder`) where `pip install` runs, and stage 2 (`FROM hi/python:3.14`) where only the application and its installed packages are copied.
-2. Build the production image: `podman build -t rhhi-demo:prod -f ~/flask/Containerfile.hi-multistage ~/flask/`.
-3. Run the production container: `podman run -d --name demo-prod -p 8080:8080 rhhi-demo:prod`.
+1. Examine the multi-stage Containerfile: `cat ~/flask/Containerfile.hardened`. Identify stage 1 (`FROM hi/python:3.14-builder AS builder`) where `pip install` runs, and stage 2 (`FROM hi/python:3.14`) where only the application and its installed packages are copied.
+2. Build the production image: `podman build -t rhhi-demo:hardened -f ~/flask/Containerfile.hardened ~/flask/`.
+3. Run the production container: `podman run -d --rm --name rhhi-hardened -p 8080:8080 rhhi-demo:hardened`.
 4. Confirm the app responds in the browser.
-5. Run `podman images` to compare sizes: UBI baseline, builder image (module 02), and production multi-stage image. Note the reduction.
-6. Attempt to exec into the production container: `podman exec -it demo-prod /bin/bash`. Observe the failure — no shell present in the distroless image.
-7. Attempt `podman exec -it demo-prod /bin/sh`. Observe the same failure.
-8. Acknowledge that the only live inspection path is a sidecar container sharing namespaces with the running container.
-9. Examine the sidecar Containerfile: `cat ~/flask/Containerfile.sidecar`. It starts `FROM core-runtime:latest-builder` and installs busybox.
-10. Build the sidecar image: `podman build -t debug-sidecar -f ~/flask/Containerfile.sidecar ~/flask/`.
-11. Launch the sidecar container with shared PID and network namespaces: `podman run -it --pid=container:demo-prod --network=container:demo-prod debug-sidecar`.
-12. Inside the sidecar shell, run `busybox ps` — observe the Flask application process visible in the shared PID namespace.
-13. Run `busybox netstat -tlnp` (or `busybox ss -tlnp`) — observe port 8080 listening in the shared network namespace.
-14. Run `rpm -qa | wc -l` inside the sidecar to inspect the core-runtime builder package count.
-15. Exit the sidecar shell.
-16. Stop and remove both containers: `podman stop demo-prod && podman rm demo-prod`.
-17. Reflect: multi-stage builds deliver a minimal production image; debug sidecars with shared namespaces are the supported inspection pattern.
+5. Run `podman images rhhi-demo` to compare sizes: UBI baseline, builder image (module 02), and production multi-stage image. Note the reduction.
+6. Attempt to run `rpm` via `--entrypoint`: `podman run --rm --entrypoint rpm rhhi-demo:hardened -qa`. Observe the OCI runtime error — `rpm` is not present in the distroless image.
+7. Acknowledge that the only live inspection path is a sidecar container sharing namespaces with the running container.
+8. Run a one-shot sidecar using the registry `core-runtime:latest-builder` image directly — pass `--pid container:rhhi-hardened`, `--network container:rhhi-hardened`, `--security-opt label=disable`, `--user 0`, and `rpm --root=/proc/1/root -qa | wc -l` — to count the application image's installed packages via `/proc`.
+9. Create `~/flask/Containerfile.debug` via heredoc: start `FROM core-runtime:latest-builder`, install `busybox`, set `CMD ["/bin/bash"]`.
+10. Build the interactive debug sidecar: `podman build -t rhhi-debug -f ~/flask/Containerfile.debug ~/flask/`.
+11. Attach the sidecar interactively: `podman run --rm -it --pid container:rhhi-hardened --network container:rhhi-hardened --security-opt label=disable --user 0 rhhi-debug bash`.
+12. Inside the sidecar: run `ls /app` and observe the "No such file or directory" error — the sidecar has its own filesystem.
+13. Access the target's filesystem via `/proc`: `ls -l /proc/1/root/app` and `head /proc/1/root/app/app.py` to confirm access to the running application's files.
+14. Run `busybox ps` — observe the Flask application as PID 1 in the shared process namespace.
+15. Run `busybox netstat -tlnp` — observe port 8080 listening in the shared network namespace.
+16. Run `curl -s -o /dev/null -w "HTTP %{http_code}\n" localhost:8080/crypto-demo` — confirm HTTP 200 via the shared network namespace.
+17. Exit the sidecar shell; confirm the application container is still running with `podman ps`.
+18. Stop the production container: `podman stop rhhi-hardened`.
 
 ### Key Takeaways
 
@@ -56,6 +57,5 @@ This module introduces the multi-stage build pattern as the production-ready sol
 
 ### Infrastructure Notes
 
-- `Containerfile.hi-multistage` and `Containerfile.sidecar` must be pre-staged in `~/flask/`.
+- `Containerfile.hardened` is written by the participant in a prior module and must be present in `~/flask/`; `Containerfile.debug` is created by the participant during this module via heredoc.
 - `core-runtime:latest-builder` and `busybox` must be accessible at sidecar build time (pullable from registry or cached).
-- Allocate extra instructor time for this module — it is 40 minutes and involves the most steps. Participants who fall behind on the sidecar build may need guidance on the `--pid` and `--network` flags.
