@@ -29,17 +29,17 @@ This module introduces the Red Hat Hardened Image variants available for Python:
 
 1. Read the overview: explain the RHHI variant naming scheme — default (distroless), `-builder`, `-fips`, `-fips-builder` — and when each is used.
 2. Run `cat ~/flask/Containerfile.hi` to examine the Containerfile targeting `hi/python:3.14` (distroless).
-3. Attempt to build: `podman build -t rhhi-demo:distroless -f ~/flask/Containerfile.hi ~/flask/`.
+3. Attempt to build: `podman build -t rhhi-demo:default -f ~/flask/Containerfile.hi ~/flask/`.
 4. Observe the build failure — the distroless image has no shell, so any `RUN` instruction that invokes `/bin/sh` or `pip` directly fails.
 5. Read the error message carefully; identify that the missing shell is the cause.
 6. Edit `~/flask/Containerfile.hi` with `vi` (or use a pre-staged `Containerfile.hi-builder`) to replace the `FROM` line with `hi/python:3.14-builder`.
 7. Build the builder-based image: `podman build -t rhhi-demo:builder -f ~/flask/Containerfile.hi ~/flask/`.
 8. Confirm the build succeeds.
-9. Run the builder image: `podman run -d --name demo-builder -p 8080:8080 rhhi-demo:builder`.
+9. Run the builder image: `podman run -d --rm --name rhhi-builder -p 8080:8080 rhhi-demo:builder`.
 10. Confirm the app responds in the browser.
-11. Inspect available packages: `podman exec demo-builder rpm -qa | wc -l` — compare against the UBI baseline count.
+11. Inspect available packages: `podman exec rhhi-builder rpm -qa | wc -l` — compare against the UBI baseline count.
 12. Run `podman images` and compare sizes: UBI baseline vs. builder image.
-13. Stop and remove the container: `podman stop demo-builder && podman rm demo-builder`.
+13. Stop the container: `podman stop rhhi-builder` (the `--rm` flag removes it automatically).
 14. Summarize: the builder variant works for single-stage builds but carries build tooling not needed at runtime; the production pattern (multi-stage builds) is covered in module 03.
 
 ### Key Takeaways

@@ -29,18 +29,18 @@ This module introduces the RHHI FIPS image variant (`hi/python:3.14-fips`), whic
 
 1. Introduce the FIPS variant: the `-fips` tag on RHHI images includes the OpenSSL FIPS provider configured and enabled, enforcing FIPS 140-3 at the container level.
 2. Check host FIPS mode: `cat /proc/sys/crypto/fips_enabled`. Note the value (likely `0` on this lab host — host FIPS mode is not required for container-level enforcement).
-3. Examine the FIPS Containerfile: `cat ~/flask/Containerfile.hi-fips`. Note the only difference from the module 03 multi-stage Containerfile is the base image tag `hi/python:3.14-fips`.
-4. Run `diff ~/flask/Containerfile.hi-multistage ~/flask/Containerfile.hi-fips` to confirm the base image is the sole change — no application code modification is needed.
-5. Build the FIPS image: `podman build -t rhhi-demo:fips -f ~/flask/Containerfile.hi-fips ~/flask/`.
-6. Run the FIPS container: `podman run -d --name demo-fips -p 8080:8080 rhhi-demo:fips`.
+3. Examine the FIPS Containerfile: `cat ~/flask/Containerfile.fips`. Note the only difference from the module 03 multi-stage Containerfile is the base image tag `hi/python:3.14-fips`.
+4. Run `diff ~/flask/Containerfile.hardened ~/flask/Containerfile.fips` to confirm the base image is the sole change — no application code modification is needed.
+5. Build the FIPS image: `podman build -t rhhi-demo:fips -f ~/flask/Containerfile.fips ~/flask/`.
+6. Run the FIPS container: `podman run -d --rm --name rhhi-fips -p 8080:8080 rhhi-demo:fips`.
 7. Open the application UI in the browser and navigate to the hash algorithm test page.
 8. Trigger MD5 hashing — observe the error or failure response (MD5 is not FIPS-compliant and is blocked by the OpenSSL FIPS provider).
 9. Trigger SHA-256 hashing — observe success (SHA-256 is FIPS-compliant).
 10. Trigger SHA-512 hashing — observe success (SHA-512 is FIPS-compliant).
-11. Stop the FIPS container: `podman stop demo-fips && podman rm demo-fips`.
-12. Start the non-FIPS production image from module 03: `podman run -d --name demo-prod -p 8080:8080 rhhi-demo:prod`.
+11. Stop the FIPS container: `podman stop rhhi-fips` (the `--rm` flag removes it automatically).
+12. Start the non-FIPS hardened image from module 03: `podman run -d --rm --name rhhi-hardened -p 8080:8080 rhhi-demo:hardened`.
 13. Repeat the MD5 test in the browser — observe that MD5 succeeds in the non-FIPS image.
-14. Stop the non-FIPS container: `podman stop demo-prod && podman rm demo-prod`.
+14. Stop the non-FIPS container: `podman stop rhhi-hardened`.
 15. Summarize: the FIPS variant enforces cryptographic policy at the container level; switching base image tag is the only required change.
 
 ### Key Takeaways
@@ -52,7 +52,7 @@ This module introduces the RHHI FIPS image variant (`hi/python:3.14-fips`), whic
 
 ### Infrastructure Notes
 
-- `Containerfile.hi-fips` must be pre-staged in `~/flask/`; it should be a copy of the multi-stage Containerfile from module 03 with the final stage base image changed to `hi/python:3.14-fips`.
+- `Containerfile.fips` must be pre-staged in `~/flask/`; it should be a copy of `Containerfile.hardened` from module 03 with the final stage base image changed to `hi/python:3.14-fips`.
 - The Flask application must expose hash algorithm test endpoints (MD5, SHA-256, SHA-512) accessible from the learner browser.
 - `hi/python:3.14-fips` must be pullable from `registry.access.redhat.com`.
-- The `rhhi-demo:prod` image built in module 03 should still be present on the learner's host for the comparison step; do not prune between modules.
+- The `rhhi-demo:hardened` image built in module 03 should still be present on the learner's host for the comparison step; do not prune between modules.
