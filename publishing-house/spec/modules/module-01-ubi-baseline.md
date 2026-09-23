@@ -12,9 +12,9 @@ This module introduces the Red Hat Hardened Images lab and establishes a UBI bas
 
 ### Learning Objectives
 
-- Examine the UBI Containerfile and recognize the standard pattern of installing Python dependencies with pip, configuring a non-root application user, and setting the runtime command
+- Examine the UBI Containerfile and recognize the standard pattern of installing Python dependencies with pip and configuring a non-root application user
 - Run the pre-built UBI container and interact with the Flask application in a browser
-- Count installed packages in the running UBI container and record the result as a baseline metric for comparing container footprint across image variants
+- Count installed packages in the running UBI container and observe that UBI's broad package set is convenient for development but adds attack surface that a production runtime does not need
 
 ### Lab Structure
 
@@ -34,7 +34,7 @@ This module introduces the Red Hat Hardened Images lab and establishes a UBI bas
 5. Run the pre-built UBI container in the background: `podman run -d --rm --name rhhi-ubi -p 8080:8080 rhhi-demo:ubi`.
 6. Open a browser tab to `http://flask-{guid}.{domain}/crypto-demo` and confirm the Flask app returns a response; optionally enter text and click Hash to observe all three algorithm outputs.
 7. Record the installed package count: `podman exec -it rhhi-ubi rpm -qa | wc -l`.
-8. Note the package count as the UBI baseline for comparison in later modules.
+8. Observe that UBI's 176 packages cover a broad range of use cases but add attack surface that a production runtime does not need.
 9. Stop the container: `podman stop rhhi-ubi` (the `--rm` flag removes it automatically).
 
 ### Key Takeaways
