@@ -1,15 +1,53 @@
 ---
-# HEALTHCHECK — Quick environment readiness check
-# Runs post-provisioning to verify the lab environment is functional.
-# Should complete in under 60 seconds.
-#
-# Exit 0 = healthy, non-zero = unhealthy.
+# Healthcheck QA — verifies the provisioned lab environment is complete.
+# A failing check means the environment is unusable and should be re-provisioned.
+# Non-destructive: does not modify any lab state.
 
-- name: "Environment Health Check"
+- name: Build inventory
   hosts: localhost
-  connection: local
   gather_facts: false
   tasks:
-    - name: "TODO: Implement health checks"
-      ansible.builtin.debug:
-        msg: "Replace this task with checks that verify the environment is ready"
+    - name: Add bastion host
+      ansible.builtin.add_host:
+        name: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        ansible_ssh_host: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') }}"
+        ansible_ssh_user: "{{ lookup('ansible.builtin.env', 'BASTION_USER') }}"
+        ansible_ssh_pass: "{{ lookup('ansible.builtin.env', 'BASTION_PASSWORD') }}"
+
+- name: Healthcheck
+  hosts: all:!localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Verify pre-staged lab files are present
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: lab_files
+      loop:
+        - /home/rhel/flask/app.py
+        - /home/rhel/flask/Containerfile.ubi
+        - /home/rhel/flask/Containerfile.hardened
+        - /home/rhel/flask/Containerfile.fips
+        - /home/rhel/webserver/Caddyfile
+
+    - name: Fail if any pre-staged file is missing
+      ansible.builtin.fail:
+        msg: "Pre-staged file missing: {{ item.item }}"
+      when: not item.stat.exists
+      loop: "{{ lab_files.results }}"
+
+    - name: Verify pre-pulled and pre-built images are present
+      ansible.builtin.command: podman image exists {{ item }}
+      changed_when: false
+      loop:
+        - registry.access.redhat.com/ubi10/ubi
+        - registry.access.redhat.com/hi/python:3.14-builder
+        - registry.access.redhat.com/hi/python:3.14
+        - registry.access.redhat.com/hi/python:3.14-fips
+        - registry.access.redhat.com/hi/python:3.14-fips-builder
+        - registry.access.redhat.com/hi/core-runtime:latest-builder
+        - registry.access.redhat.com/hi/caddy:latest
+        - registry.access.redhat.com/hi/curl:latest
+        - registry.access.redhat.com/hi/curl:latest-builder
+        - rhhi-demo:ubi
