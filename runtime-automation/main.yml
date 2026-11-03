@@ -54,6 +54,20 @@
           register: r_result
           failed_when: false
 
+        - name: Create remote script log directory
+          ansible.builtin.file:
+            path: "/tmp/runtime-scripts/{{ module_dir }}"
+            state: directory
+            mode: '0755'
+          become: true
+
+        - name: Write remote script log
+          ansible.builtin.copy:
+            dest: "/tmp/runtime-scripts/{{ module_dir }}/{{ module_stage }}-{{ inventory_hostname }}.log"
+            content: "{{ r_result.stdout | default('') }}{{ '\n' if (r_result.stdout | default('')) and (r_result.stderr | default('')) else '' }}{{ r_result.stderr | default('') }}"
+            mode: '0644'
+          become: true
+
         - name: Extract validation failure from script stdout
           ansible.builtin.set_fact:
             validation_failure: >-

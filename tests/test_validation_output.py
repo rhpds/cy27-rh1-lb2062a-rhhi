@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 
 
@@ -40,7 +41,7 @@ def runtime_tree(tmp_path):
     # No privilege escalation is needed when the temporary target is localhost.
     wrapper = wrapper.replace("          become: true\n", "          become: false\n")
     (runtime / "main.yml").write_text(wrapper)
-    module = runtime / "example"
+    module = runtime / f"rhhi-test-{uuid.uuid4().hex}"
     module.mkdir()
     output = tmp_path / "job"
     output.mkdir()
@@ -55,46 +56,63 @@ class ValidationOutputTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.tmp_path = Path(self.temp.name)
 
+    def remote_log(self, module):
+        log = Path("/tmp/runtime-scripts") / module.name / "validation-rhel.log"
+        self.addCleanup(shutil.rmtree, log.parent, ignore_errors=True)
+        return log
+
     def test_runtime_failure_produces_only_guidance(self):
         runtime, module, output = runtime_tree(self.tmp_path)
+        log = self.remote_log(module)
         (module / "validation-rhel.sh").write_text(
-            "#!/bin/sh\nset -e\necho 'before'\n"
+            "#!/bin/sh\nset -e\necho 'before'\necho 'diagnostic on stderr' >&2\n"
             "fail_validation - <<'EOF'\nMissing image\nBuild it first.\nEOF\n"
         )
         result = run_playbook(
             runtime / "main.yml",
             cwd=runtime,
             env={"BASTION_HOST": "rhel", "BASTION_PORT": "22"},
-            extra_vars={"module_dir": "example", "module_stage": "validation", "job_info_dir": output},
+            extra_vars={"module_dir": module.name, "module_stage": "validation", "job_info_dir": output},
         )
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(output.joinpath("validation_failure.out").read_text(), "Missing image\nBuild it first.")
         self.assertIn("= FAIL VALIDATION BEGIN", output.joinpath("script.out").read_text())
+        self.assertTrue(log.is_file(), result.stdout + result.stderr)
+        self.assertIn("before", log.read_text())
+        self.assertIn("diagnostic on stderr", log.read_text())
+        self.assertIn("Missing image\nBuild it first.", log.read_text())
+        self.assertEqual(log.stat().st_mode & 0o777, 0o644)
 
     def test_runtime_success_does_not_produce_failure(self):
         runtime, module, output = runtime_tree(self.tmp_path)
-        (module / "validation-rhel.sh").write_text("#!/bin/sh\necho 'validated'\n")
+        log = self.remote_log(module)
+        (module / "validation-rhel.sh").write_text("#!/bin/sh\necho 'validated'\necho 'diagnostic on stderr' >&2\n")
         result = run_playbook(
             runtime / "main.yml",
             cwd=runtime,
             env={"BASTION_HOST": "rhel", "BASTION_PORT": "22"},
-            extra_vars={"module_dir": "example", "module_stage": "validation", "job_info_dir": output},
+            extra_vars={"module_dir": module.name, "module_stage": "validation", "job_info_dir": output},
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("validated", output.joinpath("script.out").read_text())
         self.assertFalse(output.joinpath("validation_failure.out").exists())
+        self.assertTrue(log.is_file(), result.stdout + result.stderr)
+        self.assertIn("validated", log.read_text())
+        self.assertIn("diagnostic on stderr", log.read_text())
 
     def test_runtime_nonzero_without_marker_does_not_create_validation_message(self):
         runtime, module, output = runtime_tree(self.tmp_path)
+        log = self.remote_log(module)
         (module / "validation-rhel.sh").write_text("#!/bin/sh\necho 'unexpected error' >&2\nexit 2\n")
         result = run_playbook(
             runtime / "main.yml",
             cwd=runtime,
             env={"BASTION_HOST": "rhel", "BASTION_PORT": "22"},
-            extra_vars={"module_dir": "example", "module_stage": "validation", "job_info_dir": output},
+            extra_vars={"module_dir": module.name, "module_stage": "validation", "job_info_dir": output},
         )
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertFalse(output.joinpath("validation_failure.out").exists())
+        self.assertIn("unexpected error", log.read_text())
 
     def test_runtime_marker_fails_even_without_nonzero_exit(self):
         runtime, module, output = runtime_tree(self.tmp_path)
@@ -105,7 +123,7 @@ class ValidationOutputTests(unittest.TestCase):
             runtime / "main.yml",
             cwd=runtime,
             env={"BASTION_HOST": "rhel", "BASTION_PORT": "22"},
-            extra_vars={"module_dir": "example", "module_stage": "validation", "job_info_dir": output},
+            extra_vars={"module_dir": module.name, "module_stage": "validation", "job_info_dir": output},
         )
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(output.joinpath("validation_failure.out").read_text(), "Missing image")
