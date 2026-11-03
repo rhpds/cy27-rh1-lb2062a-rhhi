@@ -3,70 +3,85 @@
   hosts: localhost
   gather_facts: false
   tasks:
-  - name: Add bastion host
-    ansible.builtin.add_host:
-      name: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
-      ansible_ssh_host: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
-      ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') }}"
-      ansible_ssh_user: "{{ lookup('ansible.builtin.env', 'BASTION_USER') }}"
-      ansible_ssh_pass: "{{ lookup('ansible.builtin.env', 'BASTION_PASSWORD') }}"
-- name: Demo Playbook for the ansible-runner API
+    - name: Add bastion host
+      ansible.builtin.add_host:
+        name: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        ansible_ssh_host: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') }}"
+        ansible_ssh_user: "{{ lookup('ansible.builtin.env', 'BASTION_USER') }}"
+        ansible_ssh_pass: "{{ lookup('ansible.builtin.env', 'BASTION_PASSWORD') }}"
+
+- name: Run automation script
   hosts: all:!localhost
   gather_facts: false
   become: false
-
   tasks:
-  - name: Simple debug task
-    ansible.builtin.debug:
-      msg: "Hello Runner"
+    - name: Check if script exists
+      ansible.builtin.stat:
+        path: "./{{ module_dir }}/{{ module_stage }}-{{ inventory_hostname }}.sh"
+      delegate_to: localhost
+      register: r_script_test
 
-  - name: Set config_host variable with ansible_host value
-    set_fact:
-      config_host: "{{ ansible_host }}"
+    - name: Run script and capture validation output
+      when: r_script_test.stat.exists
+      block:
+        - name: Install fail_validation helper
+          ansible.builtin.copy:
+            dest: /tmp/env.validation.sh
+            mode: '0644'
+            content: |
+              fail_validation() {
+                echo "= FAIL VALIDATION BEGIN"
+                if [ "$1" = "-" ] || { [ -z "$*" ] && [ ! -t 0 ]; }; then
+                  while IFS= read -r LINE; do
+                    echo "$LINE"
+                  done
+                elif [ -n "$*" ]; then
+                  printf '%s\n' "$@"
+                fi
+                echo "= FAIL VALIDATION END"
+                return 1
+              }
 
-  - name: Create a directory if it does not exist
-    ansible.builtin.file:
-      path: "/tmp/runtime-scripts/{{ module_dir }}"
-      state: directory
-      mode: '0755'
+        - name: Execute script on remote host
+          ansible.builtin.script:
+            cmd: "./{{ module_dir }}/{{ module_stage }}-{{ inventory_hostname }}.sh"
+            chdir: /tmp
+            executable: /bin/bash
+          # Non-interactive Bash sources BASH_ENV before running the script.
+          environment: "{{ (script_env | default({})) | combine({'BASH_ENV': '/tmp/env.validation.sh'}) }}"
+          become: true
+          register: r_result
+          failed_when: false
 
-  - name: Check if /module_dir/module_stage-host.sh exists
-    ansible.builtin.stat:
-      path: "./{{ module_dir }}/{{ module_stage }}-{{ config_host }}.sh"
-    delegate_to: localhost
-    register: r_script_test
+        - name: Extract validation failure from script stdout
+          ansible.builtin.set_fact:
+            validation_failure: >-
+              {{ (r_result.stdout | default('') | regex_replace('\r', '')
+                  | regex_search('(?ms)^= FAIL VALIDATION BEGIN\n(.*?)\n= FAIL VALIDATION END$', '\1')
+                  | first | trim)
+                 if (r_result.stdout | default('') | regex_replace('\r', '')) is search('(?ms)^= FAIL VALIDATION BEGIN\n.*?\n= FAIL VALIDATION END$')
+                 else '' }}
 
-  - name: Copy script file
-    when: r_script_test.stat.exists
-    copy:
-      src: "./{{ module_dir }}/{{ module_stage }}-{{ ansible_host }}.sh"
-      dest: "/tmp/runtime-scripts/{{ module_dir }}/{{ module_stage }}-{{ ansible_host }}.sh"
-    register: r_result
+        - name: Write script stdout to job output
+          ansible.builtin.copy:
+            content: "{{ r_result.stdout | default('') }}"
+            dest: "{{ job_info_dir }}/script.out"
+          delegate_to: localhost
+          become: false
+          when: job_info_dir is defined
 
-  - name: Execute module_stage-host.sh if it exists
-    when: r_script_test.stat.exists
-    shell: "sh -x /tmp/runtime-scripts/{{ module_dir }}/{{ module_stage }}-{{ ansible_host }}.sh > /tmp/runtime-scripts/{{ module_dir }}/{{ module_stage }}-{{ ansible_host }}.log 2>&1"
-    become: true
-    register: r_result
+        - name: Write validation failure to job output
+          ansible.builtin.copy:
+            content: "{{ validation_failure }}"
+            dest: "{{ job_info_dir }}/validation_failure.out"
+          delegate_to: localhost
+          become: false
+          when:
+            - job_info_dir is defined
+            - validation_failure | length > 0
 
-  - name: Output script result
-    ansible.builtin.debug:
-      msg: "{{ r_result.stdout | default('') }}"
-    when: r_script_test.stat.exists
-
-  - name: Write script result to file
-    ansible.builtin.copy:
-      content: "{{ r_result.stdout | default('') }}"
-      dest: "{{ job_info_dir }}/script.out"
-    delegate_to: localhost
-    when: r_script_test.stat.exists and job_info_dir is defined
-
-  - name: Output script result
-    ansible.builtin.debug:
-      var: r_result
-    when: r_script_test.stat.exists and job_info_dir is defined
-
-  - name: Fail if stage was failed
-    ansible.builtin.fail:
-      msg: "Stage failed"
-    when: r_script_test.stat.exists and r_result.rc != 0
+        - name: Fail if script returned non-zero or reported validation failure
+          ansible.builtin.fail:
+            msg: "Stage failed (rc={{ r_result.rc }}){{ ': ' ~ validation_failure if validation_failure | length > 0 else '' }}"
+          when: r_result.rc != 0 or validation_failure | length > 0
