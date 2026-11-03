@@ -4,7 +4,7 @@
 #
 # Expected vars (set by the caller's loop):
 #   module_name  – e.g. "module-01"
-#   stage_name   – "solve" or "validation"
+#   stage_name   – "setup", "solve" or "validation"
 #   runtime_path – path to runtime-automation directory (set in play vars)
 
 - name: "{{ module_name }}/{{ stage_name }} – check script exists"
@@ -56,12 +56,22 @@
 - name: "{{ module_name }}/{{ stage_name }} – execute"
   ansible.builtin.shell: |
     set -e
-    [ -f /tmp/qa-scripts/{{ module_name }}/env.validation.sh ] && . /tmp/qa-scripts/{{ module_name }}/env.validation.sh
+    . /tmp/qa-scripts/{{ module_name }}/env.validation.sh
     set -x
     . /tmp/qa-scripts/{{ module_name }}/{{ stage_name }}-{{ inventory_hostname }}.sh
   register: r_script_result
   failed_when: false
   when: r_script_stat.stat.exists
+
+- name: "{{ module_name }}/{{ stage_name }} – extract validation failure"
+  ansible.builtin.set_fact:
+    _validation_failure: >-
+      {{ (r_script_result.stdout | default('') | regex_replace('\r', '')
+          | regex_search('(?ms)^= FAIL VALIDATION BEGIN\n(.*?)\n= FAIL VALIDATION END$', '\1')
+          | first | trim)
+         if (r_script_stat.stat.exists and
+             (r_script_result.stdout | default('') | regex_replace('\r', '')) is search('(?ms)^= FAIL VALIDATION BEGIN\n.*?\n= FAIL VALIDATION END$'))
+         else '' }}
 
 - name: "{{ module_name }}/{{ stage_name }} – write log"
   ansible.builtin.copy:
@@ -71,18 +81,6 @@
     mode: "0644"
   when: r_script_stat.stat.exists
 
-- name: "{{ module_name }}/{{ stage_name }} – capture validation failure"
-  ansible.builtin.set_fact:
-    _validation_failure: >-
-      {{ (r_script_result.stdout | default(''))
-        | regex_replace('(?ms).*^= FAIL VALIDATION BEGIN\n', '')
-        | regex_replace('(?ms)\n?= FAIL VALIDATION END.*', '')
-      }}
-  when:
-    - r_script_stat.stat.exists
-    - r_script_result.stdout is defined
-    - '"= FAIL VALIDATION BEGIN" in r_script_result.stdout'
-
 - name: "{{ module_name }}/{{ stage_name }} – write validation failure to job_info_dir"
   ansible.builtin.copy:
     content: "{{ _validation_failure }}"
@@ -90,7 +88,7 @@
   delegate_to: localhost
   become: false
   when:
-    - _validation_failure is defined
+    - _validation_failure | length > 0
     - job_info_dir is defined
 
 - name: "{{ module_name }}/{{ stage_name }} – show output"
@@ -104,7 +102,7 @@
   ansible.builtin.fail:
     msg: "Validation failed for {{ module_name }}/{{ stage_name }}: {{ _validation_failure | default('') }}"
   when:
-    - _validation_failure is defined
+    - _validation_failure | length > 0
 
 - name: "{{ module_name }}/{{ stage_name }} – fail on non-zero exit"
   ansible.builtin.fail:
@@ -112,4 +110,4 @@
   when:
     - r_script_stat.stat.exists
     - r_script_result.rc != 0
-    - _validation_failure is not defined
+    - _validation_failure | length == 0
